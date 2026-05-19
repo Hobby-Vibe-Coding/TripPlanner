@@ -1348,8 +1348,7 @@ const SPLIT_METHODS = [
   { id: "exact",   label: "Exact",   icon: "1.23",    desc: "Each traveler pays a fixed dollar amount you enter directly. Use when you've already worked out who owes what." },
   { id: "percent", label: "Percent", icon: "%",       desc: "Each traveler pays a percentage of the bill (must total 100%). Use for fixed long-term ratios." },
   { id: "shares",  label: "Shares",  icon: "≡",       desc: "Each traveler pays in proportion to assigned shares. Use when one traveler owes 2× another, etc." },
-  { id: "adjust",  label: "Adjust",  icon: "+/−",     desc: "Equal split, then add or subtract a dollar amount per traveler. Use for one-off favors or fines." },
-  { id: "days",    label: "Days",    icon: "📅",      desc: "Pay in proportion to # of days each person is on the trip. Use when people join for only part of the trip." }
+  { id: "adjust",  label: "Adjust",  icon: "+/−",     desc: "Equal split, then add or subtract a dollar amount per traveler. Use for one-off favors or fines." }
 ];
 
 const TIME_SLOTS_DEFAULT = [
@@ -1694,6 +1693,11 @@ function renderTrip() {
   const totalSpend = (t.expenses || []).reduce((s, e) => s + (parseFloat(e.cost) || 0), 0);
   const numPeople = Math.max(1, (t.travelers || []).length);
   const perPerson = totalSpend / numPeople;
+  const _myTraveler = getMyTraveler(t.id);
+  const myExpensesTotal = _myTraveler
+    ? (t.expenses || []).filter(e => expenseParticipants(e, t.travelers || []).includes(_myTraveler))
+        .reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
+    : null;
   const reservOpen = (t.reservations || []).filter(r => r.status !== "booked").length;
   const packTotal = t.packing.reduce((s, c) => s + c.items.length, 0);
   const packDone = t.packing.reduce((s, c) => s + c.items.filter(i => i.packed).length, 0);
@@ -1758,14 +1762,8 @@ function renderTrip() {
         <div class="stat"><div class="stat-label">Countdown</div><div class="stat-value primary">${cdLabel}</div></div>
         <div class="stat"><div class="stat-label">Duration</div><div class="stat-value">${nights ? nights + (nights===1?" day":" days") : "—"}</div></div>
         <div class="stat"><div class="stat-label">Travelers</div><div class="stat-value">${(t.travelers||[]).length || "—"}</div></div>
-        <div class="stat"><div class="stat-label">Total spend</div><div class="stat-value accent">${fmtCurrency(totalSpend)}</div></div>
-        ${(() => {
-          const myData = getMyTraveler(t.id) ? computeMyData(t) : null;
-          if (myData) {
-            return `<div class="stat"><div class="stat-label">My share</div><div class="stat-value">${fmtCurrency(myData.myOwed)}</div>${t.budget ? `<div style="font-size:11px;color:${myData.myOwed > t.budget ? '#c0392b' : 'var(--ink-soft)'};margin-top:2px;">of ${fmtCurrency(t.budget)} budget</div>` : ""}</div>`;
-          }
-          return `<div class="stat"><div class="stat-label">Per person</div><div class="stat-value">${(t.travelers||[]).length ? fmtCurrency(perPerson) : "—"}</div>${t.budget && (t.travelers||[]).length ? `<div style="font-size:11px;color:${perPerson > t.budget ? '#c0392b' : 'var(--ink-soft)'};margin-top:2px;">of ${fmtCurrency(t.budget)} budget</div>` : ""}</div>`;
-        })()}
+        <div class="stat"><div class="stat-label">Total spend</div><div class="stat-value accent">${fmtCurrency(totalSpend)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">all expenses</div></div>
+        ${_myTraveler ? `<div class="stat"><div class="stat-label">Your expenses</div><div class="stat-value">${fmtCurrency(myExpensesTotal)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">as ${escapeHtml(_myTraveler)}</div></div>` : ""}
         <div class="stat"><div class="stat-label">Packed</div><div class="stat-value">${packDone}/${packTotal}</div></div>
         <div class="stat"><div class="stat-label">To book</div><div class="stat-value">${reservOpen}</div></div>
         ${t.timezone ? `<div class="stat" id="tz-stat"><div class="stat-label">Local time</div><div class="stat-value" id="tz-clock">—</div></div>` : ""}
@@ -1857,15 +1855,31 @@ function renderOverview(t) {
             <span class="muted text-sm">${state.settings.currency} / person</span>
           </div>
           ${t.budget ? (() => {
-            const numT = Math.max(1, (t.travelers||[]).length);
-            const spendPP = totalSpend / numT;
-            const overPP = spendPP > t.budget;
-            const remainPP = t.budget - spendPP;
+            const myTraveler = getMyTraveler(t.id);
+            const myData = myTraveler ? computeMyData(t) : null;
+            if (myData) {
+              // Personal view
+              const mySpend = myData.myOwed;
+              const over = mySpend > t.budget;
+              const remain = t.budget - mySpend;
+              return `
+              <div class="text-sm" style="margin-top:6px;color:${over ? '#c0392b' : 'var(--ink-soft)'};">
+                ${over ? "⚠️ Over by " + fmtCurrency(mySpend - t.budget) : fmtCurrency(remain) + " remaining"} · your share
+              </div>
+              <div class="pack-bar" style="margin-top:8px;"><div class="pack-bar-fill" style="width:${Math.min(100, mySpend/t.budget*100)}%;background:${over?'#e74c3c':'linear-gradient(90deg,var(--primary),var(--accent))'}"></div></div>
+              `;
+            }
+            // Group view — no traveler selected
+            const groupBudget = t.budget * numPeople;
+            const groupOver = totalSpend > groupBudget;
+            const groupRemain = groupBudget - totalSpend;
             return `
-            <div class="text-sm" style="margin-top:6px;color:${overPP ? '#c0392b' : 'var(--ink-soft)'};">
-              ${overPP ? "⚠️ Over by " + fmtCurrency(spendPP - t.budget) + " per person" : fmtCurrency(remainPP) + " remaining per person"}
+            <div class="text-sm" style="margin-top:6px;color:var(--ink-soft);">Group budget: ${fmtCurrency(groupBudget)}</div>
+            <div class="text-sm" style="margin-top:4px;color:${groupOver ? '#c0392b' : 'var(--ink-soft)'};">
+              ${groupOver ? "⚠️ Over by " + fmtCurrency(totalSpend - groupBudget) : fmtCurrency(groupRemain) + " remaining"} · group total
             </div>
-            <div class="pack-bar" style="margin-top:8px;"><div class="pack-bar-fill" style="width:${Math.min(100, t.budget ? spendPP/t.budget*100 : 0)}%;background:${overPP?'#e74c3c':'linear-gradient(90deg,var(--primary),var(--accent))'}"></div></div>
+            <div class="pack-bar" style="margin-top:8px;"><div class="pack-bar-fill" style="width:${Math.min(100, totalSpend/groupBudget*100)}%;background:${groupOver?'#e74c3c':'linear-gradient(90deg,var(--primary),var(--accent))'}"></div></div>
+            <div class="muted text-sm" style="margin-top:6px;">Tap your name in Travelers to see personal progress</div>
             `;
           })() : `<div class="muted text-sm" style="margin-top:6px;">Set a per-person budget to track</div>`}
         </div>
@@ -2414,15 +2428,15 @@ function renderExpenses(t, printMode) {
   const total = expenses.reduce((s, e) => s + (parseFloat(e.cost) || 0), 0);
 
   // Aggregate owed/paid/settled using computeSplit logic
-  const owedBy = {}; const paidBy = {}; const settledAmt = {}; const unsettledAmt = {};
-  travelers.forEach(p => { owedBy[p] = 0; paidBy[p] = 0; settledAmt[p] = 0; unsettledAmt[p] = 0; });
+  const owedBy = {}; const paidBy = {}; const settledAmt = {}; const unsettledAmt = {}; const unsettledToMe = {};
+  travelers.forEach(p => { owedBy[p] = 0; paidBy[p] = 0; settledAmt[p] = 0; unsettledAmt[p] = 0; unsettledToMe[p] = 0; });
   expenses.forEach(e => {
     const cost = parseFloat(e.cost) || 0;
     const split = computeSplit(e, travelers);
     Object.entries(split).forEach(([p, v]) => { if (owedBy[p] !== undefined) owedBy[p] += v; });
     const payer = e.paidBy && e.paidBy.length ? e.paidBy : (travelers[0] ? [travelers[0]] : []);
     if (payer.length) payer.forEach(p => { if (paidBy[p] !== undefined) paidBy[p] += cost / payer.length; });
-    // Track settlements
+    // Track settlements — from debtor's perspective
     const settled = e.settledBy || [];
     const participants = expenseParticipants(e, travelers);
     participants.forEach(p => {
@@ -2430,6 +2444,13 @@ function renderExpenses(t, printMode) {
       if (payer.includes(p)) { settledAmt[p] += share; }
       else if (settled.includes(p)) { settledAmt[p] += share; }
       else { unsettledAmt[p] += share; }
+    });
+    // Track settlements — from creditor's perspective (amount still owed TO each payer)
+    participants.forEach(other => {
+      if (!payer.includes(other) && !settled.includes(other)) {
+        const share = (split[other] || 0) / payer.length;
+        payer.forEach(pp => { if (unsettledToMe[pp] !== undefined) unsettledToMe[pp] += share; });
+      }
     });
   });
 
@@ -2524,17 +2545,22 @@ function renderExpenses(t, printMode) {
             ${travelers.map(p => {
               const owe = owedBy[p] || 0, paid = paidBy[p] || 0, net = paid - owe;
               const color = net > 0.01 ? "var(--primary)" : net < -0.01 ? "#c0392b" : "var(--ink-soft)";
-              const sAmt = settledAmt[p] || 0, uAmt = unsettledAmt[p] || 0;
+              const uAmt = unsettledAmt[p] || 0, uToMe = unsettledToMe[p] || 0;
               const hasActivity = owe > 0;
+              const isCreditor = net > 0.01, isDebtor = net < -0.01;
+              const allSettled = isCreditor ? uToMe < 0.01 : (isDebtor ? uAmt < 0.01 : false);
+              const unsettledLabel = isCreditor
+                ? (uToMe > 0.01 ? `${fmtCurrency(uToMe)} unsettled` : '')
+                : (uAmt > 0.01 ? `${fmtCurrency(uAmt)} unsettled` : '');
               return `
                 <div class="split-pill" onclick="openPersonDetail('${escapeAttr(p)}')" title="Click to see ${escapeHtml(p)}'s expenses">
                   <div class="who">${escapeHtml(p)}</div>
                   <div class="amt">${fmtCurrency(owe)}</div>
                   <div class="text-sm" style="color:${color};margin-top:2px;">
-                    ${net > 0.01 ? "Is owed " + fmtCurrency(net) : net < -0.01 ? "Owes " + fmtCurrency(-net) : "Even"}
+                    ${isCreditor ? "Is owed " + fmtCurrency(net) : isDebtor ? "Owes " + fmtCurrency(-net) : "Even"}
                   </div>
-                  ${hasActivity && uAmt > 0.01 ? `<div class="text-sm" style="color:#c0392b;margin-top:1px;font-size:10px;">${fmtCurrency(uAmt)} unsettled</div>` : ''}
-                  ${hasActivity && uAmt < 0.01 && owe > 0 ? `<div class="text-sm" style="color:#2e7d32;margin-top:1px;font-size:10px;">✓ All settled</div>` : ''}
+                  ${hasActivity && unsettledLabel ? `<div class="text-sm" style="color:#c0392b;margin-top:1px;font-size:10px;">${unsettledLabel}</div>` : ''}
+                  ${hasActivity && allSettled ? `<div class="text-sm" style="color:#2e7d32;margin-top:1px;font-size:10px;">✓ All settled</div>` : ''}
                 </div>
               `;
             }).join("")}
@@ -2978,9 +3004,17 @@ function openPersonDetail(name) {
     // Settlement status
     const isPayer = payers.includes(name);
     const isSettled = (e.settledBy || []).includes(name);
-    let status;
-    if (isPayer) { status = "payer"; totalSettled += share; }
-    else if (isSettled) { status = "settled"; totalSettled += share; }
+    let status, settledCount = 0, debtorCount = 0;
+    if (isPayer) {
+      const debtors = participants.filter(p => !payers.includes(p));
+      debtorCount = debtors.length;
+      settledCount = debtors.filter(p => (e.settledBy || []).includes(p)).length;
+      status = debtorCount === 0 ? "payer-solo"
+             : settledCount === debtorCount ? "payer-full"
+             : settledCount === 0 ? "payer-none"
+             : "payer-partial";
+      totalSettled += share;
+    } else if (isSettled) { status = "settled"; totalSettled += share; }
     else { status = "unsettled"; totalUnsettled += share; }
 
     personExpenses.push({
@@ -2991,6 +3025,8 @@ function openPersonDetail(name) {
       share: share,
       paidAmount: paidAmount,
       status: status,
+      settledCount,
+      debtorCount,
       index: i
     });
   });
@@ -2999,9 +3035,16 @@ function openPersonDetail(name) {
   const netClass = net > 0.01 ? "positive" : net < -0.01 ? "negative" : "even";
   const netLabel = net > 0.01 ? "Is owed " + fmtCurrency(net) : net < -0.01 ? "Owes " + fmtCurrency(-net) : "Even";
 
-  const statusBadge = (s) => {
-    if (s === "payer") return '<span style="display:inline-block;background:var(--primary-soft);color:var(--primary-dark);padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">Payer</span>';
-    if (s === "settled") return '<span style="display:inline-block;background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">Settled</span>';
+  const statusBadge = (pe) => {
+    const s = pe.status;
+    if (s === "payer-full" || s === "payer-solo")
+      return '<span style="display:inline-block;background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">Fully recovered</span>';
+    if (s === "payer-partial")
+      return `<span style="display:inline-block;background:#fff8e1;color:#f57f17;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">${pe.settledCount}/${pe.debtorCount} settled</span>`;
+    if (s === "payer-none")
+      return '<span style="display:inline-block;background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">Awaiting payment</span>';
+    if (s === "settled")
+      return '<span style="display:inline-block;background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">Settled</span>';
     return '<span style="display:inline-block;background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">Unsettled</span>';
   };
 
@@ -3012,8 +3055,8 @@ function openPersonDetail(name) {
       <td class="num">${fmtCurrency(pe.totalCost)}</td>
       <td>${pe.date || "—"}</td>
       <td class="num">${fmtCurrency(pe.share)}</td>
-      <td class="num">${pe.paidAmount > 0 ? fmtCurrency(pe.paidAmount) : "—"}</td>
-      <td style="text-align:center;">${statusBadge(pe.status)}</td>
+      <td class="num">${pe.status.startsWith("payer") ? fmtCurrency(pe.paidAmount) : pe.status === "settled" ? fmtCurrency(pe.share) : fmtCurrency(0)}</td>
+      <td style="text-align:center;">${statusBadge(pe)}</td>
     </tr>
   `).join("") : `<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:24px;">No expenses yet</td></tr>`;
 
