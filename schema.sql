@@ -14,8 +14,12 @@ CREATE TABLE IF NOT EXISTS auth (
 CREATE TABLE IF NOT EXISTS share_tokens (
   token      TEXT        PRIMARY KEY,
   trip_id    TEXT        NOT NULL,
+  mode       TEXT        NOT NULL DEFAULT 'read',  -- 'read' | 'edit'
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migration for existing deployments (safe to run multiple times):
+-- ALTER TABLE share_tokens ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'read';
 
 -- Seed the singleton state row so PUT can always use UPDATE.
 INSERT INTO app_data (id, data)

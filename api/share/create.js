@@ -21,16 +21,17 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Invalid token" });
   }
 
-  const { tripId } = req.body || {};
+  const { tripId, mode = "read" } = req.body || {};
   if (!tripId) return res.status(400).json({ error: "tripId required" });
+  if (mode !== "read" && mode !== "edit") return res.status(400).json({ error: "mode must be 'read' or 'edit'" });
 
   const sql = neon(process.env.DATABASE_URL);
 
-  // Return existing token if one already exists for this trip.
-  const existing = await sql`SELECT token FROM share_tokens WHERE trip_id = ${tripId}`;
-  if (existing.length) return res.status(200).json({ token: existing[0].token });
+  // Each trip can have both a read and an edit token — look up by tripId AND mode.
+  const existing = await sql`SELECT token FROM share_tokens WHERE trip_id = ${tripId} AND mode = ${mode}`;
+  if (existing.length) return res.status(200).json({ token: existing[0].token, mode });
 
   const token = randomToken();
-  await sql`INSERT INTO share_tokens (token, trip_id) VALUES (${token}, ${tripId})`;
-  return res.status(201).json({ token });
+  await sql`INSERT INTO share_tokens (token, trip_id, mode) VALUES (${token}, ${tripId}, ${mode})`;
+  return res.status(201).json({ token, mode });
 }
