@@ -36,21 +36,10 @@ export default async function handler(req, res) {
     RETURNING id, username
   `;
 
-  // First-user migration: carry over legacy single-password app_data and share_tokens.
-  if (user.id === 1) {
-    const legacy = await sql`SELECT data FROM app_data WHERE id = 1`;
-    const seedData = legacy.length ? legacy[0].data : DEFAULT_DATA;
-    await sql`
-      INSERT INTO app_data (user_id, data) VALUES (1, ${seedData})
-      ON CONFLICT (user_id) DO NOTHING
-    `;
-    await sql`UPDATE share_tokens SET user_id = 1 WHERE user_id IS NULL`;
-  } else {
-    await sql`
-      INSERT INTO app_data (user_id, data) VALUES (${user.id}, ${DEFAULT_DATA})
-      ON CONFLICT (user_id) DO NOTHING
-    `;
-  }
+  await sql`
+    INSERT INTO app_data (user_id, data) VALUES (${user.id}, ${DEFAULT_DATA})
+    ON CONFLICT (user_id) DO NOTHING
+  `;
 
   const token = jwt.sign({ id: user.id, username: user.username }, process.env.JWT_SECRET);
   return res.status(201).json({ token });
