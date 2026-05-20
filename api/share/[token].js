@@ -14,14 +14,14 @@ export default async function handler(req, res) {
   if (!token) return res.status(400).json({ error: "Token required" });
 
   const sql = neon(process.env.DATABASE_URL);
-  const tokenRow = await sql`SELECT trip_id, mode FROM share_tokens WHERE token = ${token}`;
+  const tokenRow = await sql`SELECT user_id, trip_id, mode FROM share_tokens WHERE token = ${token}`;
   if (!tokenRow.length) return res.status(404).json({ error: "Share link not found or expired" });
 
-  const { trip_id: tripId, mode } = tokenRow[0];
+  const { user_id: userId, trip_id: tripId, mode } = tokenRow[0];
 
   // ── GET: return the trip + its mode so the frontend knows which auth state to apply ──
   if (req.method === "GET") {
-    const dataRow = await sql`SELECT data FROM app_data WHERE id = 1`;
+    const dataRow = await sql`SELECT data FROM app_data WHERE user_id = ${userId}`;
     if (!dataRow.length) return res.status(404).json({ error: "No data found" });
 
     let appState;
@@ -47,12 +47,11 @@ export default async function handler(req, res) {
     if (!trip || typeof trip !== "object") {
       return res.status(400).json({ error: "trip object required" });
     }
-    // Enforce that only the token's own trip can be updated.
     if (trip.id !== tripId) {
       return res.status(403).json({ error: "Trip ID does not match this share token" });
     }
 
-    const dataRow = await sql`SELECT data FROM app_data WHERE id = 1`;
+    const dataRow = await sql`SELECT data FROM app_data WHERE user_id = ${userId}`;
     if (!dataRow.length) return res.status(404).json({ error: "No data found" });
 
     let appState;
@@ -69,8 +68,8 @@ export default async function handler(req, res) {
     const newData = JSON.stringify(appState);
 
     await sql`
-      INSERT INTO app_data (id, data) VALUES (1, ${newData})
-      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data
+      INSERT INTO app_data (user_id, data) VALUES (${userId}, ${newData})
+      ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data
     `;
     return res.status(200).json({ ok: true });
   }

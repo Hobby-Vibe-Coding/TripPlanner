@@ -5,10 +5,7 @@ export const config = {
   api: { bodyParser: { sizeLimit: "8mb" } },
 };
 
-const DEFAULT_STATE = JSON.stringify({
-  trips: [],
-  settings: { theme: "beach", currency: "USD" },
-});
+const DEFAULT_STATE = '{"trips":[],"settings":{"theme":"beach","currency":"USD"}}';
 
 function verifyToken(req) {
   const auth = req.headers.authorization || "";
@@ -26,23 +23,23 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(204).end();
 
+  const user = verifyToken(req);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+
   const sql = neon(process.env.DATABASE_URL);
 
   if (req.method === "GET") {
-    const rows = await sql`SELECT data FROM app_data WHERE id = 1`;
+    const rows = await sql`SELECT data FROM app_data WHERE user_id = ${user.id}`;
     const data = rows[0]?.data ?? DEFAULT_STATE;
     res.setHeader("Content-Type", "application/json");
     return res.status(200).send(data);
   }
 
   if (req.method === "PUT") {
-    if (!verifyToken(req)) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
     const body = JSON.stringify(req.body);
     await sql`
-      INSERT INTO app_data (id, data) VALUES (1, ${body})
-      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data
+      INSERT INTO app_data (user_id, data) VALUES (${user.id}, ${body})
+      ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data
     `;
     return res.status(200).json({ ok: true });
   }

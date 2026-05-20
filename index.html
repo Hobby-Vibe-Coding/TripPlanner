@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-auth="locked">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -258,9 +258,9 @@
 }
 
 /* ===========================================================
-   AUTH / VIEW-ONLY
+   SHARE MODE
    =========================================================== */
-.view-only-banner {
+.share-banner {
   background: var(--primary-soft);
   border-bottom: 1px solid var(--line);
   color: var(--primary-dark);
@@ -268,51 +268,27 @@
   text-align: center; padding: 7px 16px;
   display: flex; align-items: center; justify-content: center; gap: 10px;
 }
-.view-only-banner button {
-  background: var(--primary); color: white;
-  border: none; border-radius: 7px;
-  padding: 4px 12px; font-size: 12px; font-weight: 700;
-  cursor: pointer;
-}
-[data-auth="locked"] .edit-action { display: none !important; }
 
-/* Disable every form control inside the content area when locked */
-[data-auth="locked"] #app-root input,
-[data-auth="locked"] #app-root textarea,
-[data-auth="locked"] #app-root select {
+/* Any share link: hide nav elements visitors must never touch */
+[data-share] .share-hidden { display: none !important; }
+
+/* Any share link: hide trip-level edit actions (share, delete, duplicate) */
+[data-share] .edit-action { display: none !important; }
+
+/* Read-only share: disable every form control */
+[data-share="read"] #app-root input,
+[data-share="read"] #app-root textarea,
+[data-share="read"] #app-root select {
   pointer-events: none !important;
   cursor: default !important;
   background: transparent !important;
   color: var(--ink) !important;
 }
-[data-auth="locked"] #app-root input[type="checkbox"] {
-  opacity: 0.45;
-}
-/* Let read-only link anchors still open */
-[data-auth="locked"] #app-root a { pointer-events: auto !important; }
+[data-share="read"] #app-root input[type="checkbox"] { opacity: 0.45; }
+[data-share="read"] #app-root a { pointer-events: auto !important; }
 
-/* Any share link (read OR edit): hide things visitors must never touch */
-[data-share="true"] .share-hidden { display: none !important; }
-
-/* share-edit: re-enable all form controls but hide global/destructive actions */
-[data-auth="share-edit"] #app-root input,
-[data-auth="share-edit"] #app-root textarea,
-[data-auth="share-edit"] #app-root select {
-  pointer-events: auto !important;
-  cursor: auto !important;
-  background: revert !important;
-  color: revert !important;
-}
-[data-auth="share-edit"] #app-root input[type="checkbox"] {
-  opacity: 1;
-}
-/* Itinerary slot textareas must stay transparent so the filled-cell background shows */
-[data-auth="share-edit"] #app-root .itin-cell.slot textarea,
-[data-auth="locked"] #app-root .itin-cell.slot textarea {
-  background: transparent !important;
-}
-[data-auth="share-edit"] .share-edit-hidden { display: none !important; }
-[data-auth="share-edit"] .edit-action { display: none !important; }
+/* Itinerary slot textareas stay transparent so filled-cell background shows */
+[data-share] #app-root .itin-cell.slot textarea { background: transparent !important; }
 
 /* ===========================================================
    BASE
@@ -1426,18 +1402,17 @@ table.t tfoot td {
     <button class="icon-btn" title="Settings, themes, export/import" onclick="openSettings()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
     </button>
-    <button class="icon-btn" id="lock-btn" title="Sign in to edit" onclick="toggleAuth()">
-      <svg id="lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <button class="icon-btn share-hidden" id="user-btn" title="Account" onclick="openUserMenu()" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <span id="user-label" style="font-size:13px;font-weight:600;margin-left:4px;"></span>
     </button>
-    <button class="btn primary edit-action" onclick="openNewTrip()" id="newtrip-nav-btn">
+    <button class="btn primary share-hidden" onclick="openNewTrip()" id="newtrip-nav-btn" style="display:none;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       New Trip
     </button>
   </div>
 </nav>
-<div id="view-only-banner" class="view-only-banner no-print" style="display:none;">
-  🔒 View only — <button onclick="toggleAuth()">Sign in to edit</button>
-</div>
+<div id="share-banner" class="share-banner no-print" style="display:none;"></div>
 
 <main class="app" id="app-root"></main>
 <button class="fab no-print" onclick="openCalc()" title="Quick calculator">
@@ -1537,46 +1512,49 @@ function startTzClock() {
 function stopTzClock() { if (tzInterval) { clearInterval(tzInterval); tzInterval = null; } }
 
 // -------- AUTH --------
-function getToken() { return sessionStorage.getItem("tp_token"); }
+let currentUser = null; // { id, username } decoded from JWT, or null
+
+function getToken() { return localStorage.getItem("tp_token"); }
 function setToken(t) {
-  sessionStorage.setItem("tp_token", t);
-  document.documentElement.setAttribute("data-auth", "unlocked");
-  const btn = document.getElementById("lock-btn");
-  if (btn) { btn.title = "Sign out"; btn.classList.add("unlocked"); }
-  document.getElementById("lock-icon").innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>';
-  const banner = document.getElementById("view-only-banner");
-  if (banner) banner.style.display = "none";
+  localStorage.setItem("tp_token", t);
+  try { currentUser = JSON.parse(atob(t.split(".")[1])); } catch { currentUser = null; }
+  updateHeaderUI();
 }
 function clearToken() {
-  sessionStorage.removeItem("tp_token");
-  document.documentElement.setAttribute("data-auth", "locked");
-  const btn = document.getElementById("lock-btn");
-  if (btn) { btn.title = "Sign in to edit"; btn.classList.remove("unlocked"); }
-  document.getElementById("lock-icon").innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
-  const banner = document.getElementById("view-only-banner");
-  if (banner) banner.style.display = "";
+  localStorage.removeItem("tp_token");
+  localStorage.removeItem("tp_theme");
+  currentUser = null;
+  updateHeaderUI();
+  showLoginModal();
 }
+function updateHeaderUI() {
+  const userBtn = document.getElementById("user-btn");
+  const userLabel = document.getElementById("user-label");
+  const newTripBtn = document.getElementById("newtrip-nav-btn");
+  if (currentUser) {
+    if (userBtn) userBtn.style.display = "";
+    if (userLabel) userLabel.textContent = currentUser.username;
+    if (newTripBtn) newTripBtn.style.display = "";
+  } else {
+    if (userBtn) userBtn.style.display = "none";
+    if (newTripBtn) newTripBtn.style.display = "none";
+  }
+}
+function openUserMenu() {
+  if (confirm(`Signed in as "${currentUser?.username}"\n\nSign out?`)) {
+    clearToken();
+  }
+}
+function isLoggedIn() { return !!currentUser; }
+function isShareMode() { return document.documentElement.hasAttribute("data-share"); }
 function isEditing() {
-  const auth = document.documentElement.getAttribute("data-auth");
-  return auth === "unlocked" || auth === "share-edit";
-}
-function isShareMode() {
-  return document.documentElement.getAttribute("data-share") === "true";
+  if (currentUser) return true;
+  return document.documentElement.getAttribute("data-share") === "edit";
 }
 function guardEdit() {
   if (isEditing()) return true;
-  openPasswordModal();
+  if (!currentUser) { showLoginModal(); }
   return false;
-}
-function toggleAuth() {
-  if (isEditing()) { if (confirm("Sign out?")) { clearToken(); render(); } }
-  else openPasswordModal();
-}
-function applyAuthState() {
-  const auth = document.documentElement.getAttribute("data-auth");
-  // Don't touch share-edit state — it is managed exclusively by loadSharedTrip().
-  if (auth === "share-edit") return;
-  if (getToken()) setToken(getToken()); else clearToken();
 }
 
 // -------- STATE / STORAGE --------
@@ -1584,7 +1562,10 @@ const DEFAULT_STATE = () => ({ trips: [], settings: { theme: "beach", currency: 
 
 async function loadState() {
   try {
-    const res = await fetch("/api/data");
+    const res = await fetch("/api/data", {
+      headers: { "Authorization": `Bearer ${getToken()}` },
+    });
+    if (res.status === 401) { clearToken(); return DEFAULT_STATE(); }
     if (!res.ok) throw new Error("fetch failed");
     const s = await res.json();
     s.trips = s.trips || [];
@@ -1595,11 +1576,9 @@ async function loadState() {
   }
 }
 function saveState() {
-  const auth = document.documentElement.getAttribute("data-auth");
-
-  if (auth === "share-edit") {
+  if (isShareMode() && window._shareToken) {
     const trip = currentTrip();
-    if (!trip || !window._shareToken) return;
+    if (!trip) return;
     fetch(`/api/share/${window._shareToken}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -1652,9 +1631,11 @@ function tripDuration(t) {
 }
 
 function setTheme(themeId) {
-  if (!isShareMode() && !guardEdit()) return;
+  if (!guardEdit()) return;
   document.documentElement.setAttribute("data-theme", themeId);
-  state.settings.theme = themeId; saveState();
+  state.settings.theme = themeId;
+  if (currentUser) localStorage.setItem("tp_theme", themeId);
+  saveState();
 }
 
 // -------- TRIP MODEL --------
@@ -1721,7 +1702,6 @@ function setTab(t) { route.tab = t; render(); }
 // -------- RENDER --------
 function render() {
   document.documentElement.setAttribute("data-theme", state.settings.theme || "beach");
-  applyAuthState();
   stopTzClock();
   const root = document.getElementById("app-root");
   if (route.view === "home") root.innerHTML = renderHome();
@@ -1737,23 +1717,6 @@ function autoGrow(el) {
 
 // -------- HOME / DASHBOARD --------
 function renderHome() {
-  if (document.documentElement.getAttribute("data-auth") === "locked") {
-    return `
-      <section class="hero">
-        <div class="hero-text">
-          <h1>Hey Hoang Le — <span class="accent">where are we going?</span></h1>
-          <p>Sign in to view and manage your trips.</p>
-        </div>
-        <div class="hero-emoji">✈️</div>
-      </section>
-      <div class="empty-state">
-        <div class="e-emoji">🔒</div>
-        <h3>Sign in to continue</h3>
-        <p>Your trips are private. Enter the master password to view and edit them.</p>
-        <button class="btn primary lg" onclick="openPasswordModal()">Sign in</button>
-      </div>
-    `;
-  }
 
   const trips = state.trips.slice().sort((a, b) => (a.startDate || "z").localeCompare(b.startDate || "z"));
   const upcoming = trips.filter(t => {
@@ -1771,7 +1734,7 @@ function renderHome() {
   return `
     <section class="hero">
       <div class="hero-text">
-        <h1>Hey Hoang Le — <span class="accent">where are we going?</span></h1>
+        <h1>Hey ${escapeHtml(currentUser?.username || "there")} — <span class="accent">where are we going?</span></h1>
         <p>${heroSub}</p>
       </div>
       <div class="hero-emoji">${state.trips.length ? "🌎" : "✈️"}</div>
@@ -1880,11 +1843,11 @@ function renderTrip() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
             Print
           </button>
-          <button class="btn edit-action share-edit-hidden" onclick="openShareModal('${t.id}')" title="Share this trip">
+          <button class="btn edit-action" onclick="openShareModal('${t.id}')" title="Share this trip">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
             Share
           </button>
-          <button class="btn danger edit-action share-edit-hidden" onclick="confirmDeleteTrip()" title="Delete trip">
+          <button class="btn danger edit-action" onclick="confirmDeleteTrip()" title="Delete trip">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           </button>
         </div>
@@ -3586,48 +3549,136 @@ function showModal({ title, body, actions, size }) {
 }
 function closeModal() { document.getElementById("modal-root").innerHTML = ""; }
 
-// -------- PASSWORD MODAL --------
-function openPasswordModal() {
-  showModal({
-    title: "Sign in to edit",
-    size: "sm",
-    body: `
-      <div class="field">
-        <label>Master password</label>
-        <input type="password" id="pw-input" placeholder="Enter password" autocomplete="current-password"
-               style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
-               onkeydown="if(event.key==='Enter') submitPassword()" />
-        <div id="pw-error" style="color:#c0392b;font-size:12px;margin-top:6px;display:none;"></div>
+// -------- AUTH MODAL --------
+function showLoginModal(defaultTab = "login") {
+  const modalRoot = document.getElementById("modal-root");
+  if (!modalRoot) return;
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this&&${isLoggedIn()})closeModal()">
+      <div class="modal" style="max-width:380px;width:100%;">
+        <div class="modal-header">
+          <h2 class="modal-title" id="auth-modal-title">Sign In</h2>
+        </div>
+        <div class="modal-body">
+          <div style="display:flex;gap:0;margin-bottom:20px;border:1px solid var(--line);border-radius:10px;overflow:hidden;">
+            <button id="tab-login" onclick="switchAuthTab('login')"
+              style="flex:1;padding:9px;border:none;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+                     background:var(--primary);color:white;transition:background .15s;">
+              Sign In
+            </button>
+            <button id="tab-register" onclick="switchAuthTab('register')"
+              style="flex:1;padding:9px;border:none;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+                     background:var(--surface);color:var(--ink-soft);transition:background .15s;">
+              Register
+            </button>
+          </div>
+
+          <div id="auth-form-login">
+            <div class="field">
+              <label>Username</label>
+              <input type="text" id="login-username" placeholder="your username" autocomplete="username"
+                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()" />
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password" id="login-password" placeholder="your password" autocomplete="current-password"
+                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     onkeydown="if(event.key==='Enter')submitLogin()" />
+            </div>
+            <div id="login-error" style="color:#c0392b;font-size:12px;margin-bottom:8px;display:none;"></div>
+            <button class="btn primary" style="width:100%;padding:11px;" onclick="submitLogin()">Sign In</button>
+          </div>
+
+          <div id="auth-form-register" style="display:none;">
+            <div class="field">
+              <label>Username</label>
+              <input type="text" id="reg-username" placeholder="3–20 chars, letters/numbers/underscore" autocomplete="username"
+                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     onkeydown="if(event.key==='Enter')document.getElementById('reg-password').focus()" />
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password" id="reg-password" placeholder="min 8 characters" autocomplete="new-password"
+                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     onkeydown="if(event.key==='Enter')document.getElementById('reg-confirm').focus()" />
+            </div>
+            <div class="field">
+              <label>Confirm password</label>
+              <input type="password" id="reg-confirm" placeholder="repeat password" autocomplete="new-password"
+                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     onkeydown="if(event.key==='Enter')submitRegister()" />
+            </div>
+            <div id="reg-error" style="color:#c0392b;font-size:12px;margin-bottom:8px;display:none;"></div>
+            <button class="btn primary" style="width:100%;padding:11px;" onclick="submitRegister()">Create Account</button>
+          </div>
+        </div>
       </div>
-    `,
-    actions: [
-      { label: "Cancel", onClick: closeModal },
-      { label: "Sign in", primary: true, onClick: submitPassword },
-    ],
-  });
-  setTimeout(() => document.getElementById("pw-input")?.focus(), 50);
+    </div>`;
+  switchAuthTab(defaultTab);
 }
-async function submitPassword() {
-  const input = document.getElementById("pw-input");
-  const errEl = document.getElementById("pw-error");
-  if (!input) return;
-  const password = input.value.trim();
-  if (!password) return;
-  input.disabled = true;
+function switchAuthTab(tab) {
+  const isLogin = tab === "login";
+  document.getElementById("auth-form-login").style.display = isLogin ? "" : "none";
+  document.getElementById("auth-form-register").style.display = isLogin ? "none" : "";
+  document.getElementById("auth-modal-title").textContent = isLogin ? "Sign In" : "Create Account";
+  document.getElementById("tab-login").style.background = isLogin ? "var(--primary)" : "var(--surface)";
+  document.getElementById("tab-login").style.color = isLogin ? "white" : "var(--ink-soft)";
+  document.getElementById("tab-register").style.background = isLogin ? "var(--surface)" : "var(--primary)";
+  document.getElementById("tab-register").style.color = isLogin ? "var(--ink-soft)" : "white";
+  const firstInput = isLogin ? "login-username" : "reg-username";
+  setTimeout(() => document.getElementById(firstInput)?.focus(), 50);
+}
+async function submitLogin() {
+  const username = document.getElementById("login-username")?.value.trim();
+  const password = document.getElementById("login-password")?.value;
+  const errEl = document.getElementById("login-error");
+  if (!username || !password) return;
+  const btn = document.querySelector("#auth-form-login .btn.primary");
+  if (btn) btn.disabled = true;
   try {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Login failed");
     setToken(data.token);
     closeModal();
+    state = await loadState();
     render();
   } catch (err) {
-    input.disabled = false;
-    input.select();
+    if (btn) btn.disabled = false;
+    if (errEl) { errEl.textContent = err.message; errEl.style.display = ""; }
+  }
+}
+async function submitRegister() {
+  const username = document.getElementById("reg-username")?.value.trim();
+  const password = document.getElementById("reg-password")?.value;
+  const confirm = document.getElementById("reg-confirm")?.value;
+  const errEl = document.getElementById("reg-error");
+  if (!username || !password || !confirm) return;
+  if (password !== confirm) {
+    if (errEl) { errEl.textContent = "Passwords do not match."; errEl.style.display = ""; }
+    return;
+  }
+  const btn = document.querySelector("#auth-form-register .btn.primary");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Registration failed");
+    setToken(data.token);
+    closeModal();
+    state = await loadState();
+    render();
+  } catch (err) {
+    if (btn) btn.disabled = false;
     if (errEl) { errEl.textContent = err.message; errEl.style.display = ""; }
   }
 }
@@ -3805,7 +3856,6 @@ function openSettings() {
           </select>
         </div>
 
-        ${document.documentElement.getAttribute("data-auth") === "unlocked" ? `
         <div class="field">
           <label>Data</label>
           <div class="row">
@@ -3825,7 +3875,6 @@ function openSettings() {
           <label style="color:#c0392b;">Danger zone</label>
           <button class="btn danger" onclick="resetAll()">Reset all data</button>
         </div>
-        ` : ""}
 
         <div class="field">
           <label>App</label>
@@ -3853,7 +3902,7 @@ function pickTheme(id) {
   document.querySelectorAll(".theme-swatch").forEach(s => s.classList.remove("sel"));
   document.querySelectorAll(`.theme-swatch[onclick*="${id}"]`).forEach(s => s.classList.add("sel"));
 }
-function updateCurrency(c) { if (!isShareMode() && !guardEdit()) return; state.settings.currency = c; saveState(); render(); }
+function updateCurrency(c) { if (!guardEdit()) return; state.settings.currency = c; saveState(); render(); }
 function exportJson() {
   const data = JSON.stringify(state, null, 2);
   const blob = new Blob([data], { type: "application/json" });
@@ -3881,7 +3930,7 @@ function importJson(ev) {
   reader.readAsText(file);
 }
 function resetAll() {
-  if (!isEditing()) { alert("Sign in to edit."); return; }
+  if (!isLoggedIn()) return;
   if (!confirm("Delete ALL trips and data? This cannot be undone.")) return;
   if (!confirm("Really? Last chance.")) return;
   state = DEFAULT_STATE();
@@ -3890,21 +3939,35 @@ function resetAll() {
 
 // -------- INITIAL --------
 document.addEventListener("DOMContentLoaded", async () => {
+  // Apply cached theme immediately — zero flicker on return visits.
+  const cachedTheme = localStorage.getItem("tp_theme") || "beach";
+  document.documentElement.setAttribute("data-theme", cachedTheme);
+
   // Register PWA service worker.
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
 
-  // Handle shared trip link: ?share=<token>
+  // Handle shared trip link: ?share=<token> — no auth required.
   const shareToken = new URLSearchParams(location.search).get("share");
   if (shareToken) {
     await loadSharedTrip(shareToken);
     return;
   }
 
-  state = await loadState();
-  applyAuthState();
-  render();
+  // Restore session from localStorage JWT.
+  const storedToken = getToken();
+  if (storedToken) {
+    try { currentUser = JSON.parse(atob(storedToken.split(".")[1])); } catch { currentUser = null; }
+  }
+
+  if (currentUser) {
+    updateHeaderUI();
+    state = await loadState();
+    render();
+  } else {
+    showLoginModal();
+  }
 });
 
 async function loadSharedTrip(token) {
@@ -3916,22 +3979,18 @@ async function loadSharedTrip(token) {
 
     state = { trips: [trip], settings: settings || { theme: "beach", currency: "USD" } };
 
-    // Mark the document as being in share mode — hides navigation and data controls.
-    document.documentElement.setAttribute("data-share", "true");
-    document.getElementById("lock-btn").style.display = "none";
-    document.getElementById("newtrip-nav-btn").style.display = "none";
+    // Mark the document as being in share mode — hides nav and edit actions.
+    document.documentElement.setAttribute("data-share", mode === "edit" ? "edit" : "read");
 
-    const banner = document.getElementById("view-only-banner");
+    const banner = document.getElementById("share-banner");
     banner.style.display = "";
 
     if (mode === "edit") {
       window._shareToken = token;
-      document.documentElement.setAttribute("data-auth", "share-edit");
       banner.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         Editing shared trip — changes save automatically`;
     } else {
-      document.documentElement.setAttribute("data-auth", "locked");
       banner.innerHTML = `🔗 Shared view — read only`;
     }
 
@@ -3983,7 +4042,7 @@ function renderTripCard(t) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         ${totalSpend > 0 ? fmtCurrency(totalSpend) : (t.budget ? fmtCurrency(t.budget) + "/person budget" : "No expenses yet")}
       </div>
-      <button class="btn sm edit-action share-edit-hidden" style="margin-top:10px;width:100%;justify-content:center;"
+      <button class="btn sm edit-action" style="margin-top:10px;width:100%;justify-content:center;"
               onclick="duplicateTrip('${t.id}', event)" title="Duplicate as template">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Duplicate
