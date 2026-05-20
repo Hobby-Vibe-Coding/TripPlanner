@@ -1972,7 +1972,7 @@ function renderOverview(t) {
                    style="font-size:22px;font-weight:700;color:var(--ink);border:none;background:transparent;width:140px;"/>
             <span class="muted text-sm">${state.settings.currency} / person</span>
           </div>
-          ${t.budget ? (() => {
+          ${t.budget && !shareReadOnly ? (() => {
             const myTraveler = getMyTraveler(t.id);
             const myData = myTraveler ? computeMyData(t) : null;
             if (myData) {
@@ -1999,7 +1999,7 @@ function renderOverview(t) {
             <div class="pack-bar" style="margin-top:8px;"><div class="pack-bar-fill" style="width:${Math.min(100, totalSpend/groupBudget*100)}%;background:${groupOver?'#e74c3c':'linear-gradient(90deg,var(--primary),var(--accent))'}"></div></div>
             <div class="muted text-sm" style="margin-top:6px;">Tap your name in Travelers to see personal progress</div>
             `;
-          })() : `<div class="muted text-sm" style="margin-top:6px;">Set a per-person budget to track</div>`}
+          })() : ""}
         </div>
 
         ${themes.length ? `
