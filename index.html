@@ -353,6 +353,20 @@ input, textarea, select { font-family: inherit; }
 .icon-btn:hover { background: var(--primary-soft); border-color: var(--line-strong); }
 .icon-btn svg { width: 18px; height: 18px; }
 .icon-btn.unlocked { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.user-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 12px 0 6px; height: 38px; border-radius: 10px;
+  background: var(--surface-solid); border: 1px solid var(--line);
+  color: var(--ink); font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.user-chip:hover { background: var(--primary-soft); border-color: var(--line-strong); }
+.user-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--primary-soft); color: var(--primary);
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.user-avatar svg { width: 14px; height: 14px; }
 
 /* ===========================================================
    APP LAYOUT
@@ -1402,13 +1416,11 @@ table.t tfoot td {
     <button class="icon-btn" title="Settings, themes, export/import" onclick="openSettings()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
     </button>
-    <button class="icon-btn share-hidden" id="user-btn" title="Account" onclick="openUserMenu()" style="display:none;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      <span id="user-label" style="font-size:13px;font-weight:600;margin-left:4px;"></span>
-    </button>
-    <button class="btn primary share-hidden" onclick="openNewTrip()" id="newtrip-nav-btn" style="display:none;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      New Trip
+    <button class="user-chip share-hidden" id="user-btn" title="Sign out" onclick="openUserMenu()" style="display:none;">
+      <span class="user-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </span>
+      <span id="user-label"></span>
     </button>
   </div>
 </nav>
@@ -1524,20 +1536,20 @@ function clearToken() {
   localStorage.removeItem("tp_token");
   localStorage.removeItem("tp_theme");
   currentUser = null;
+  state = DEFAULT_STATE();
+  const root = document.getElementById("app-root");
+  if (root) root.innerHTML = "";
   updateHeaderUI();
   showLoginModal();
 }
 function updateHeaderUI() {
   const userBtn = document.getElementById("user-btn");
   const userLabel = document.getElementById("user-label");
-  const newTripBtn = document.getElementById("newtrip-nav-btn");
   if (currentUser) {
     if (userBtn) userBtn.style.display = "";
     if (userLabel) userLabel.textContent = currentUser.username;
-    if (newTripBtn) newTripBtn.style.display = "";
   } else {
     if (userBtn) userBtn.style.display = "none";
-    if (newTripBtn) newTripBtn.style.display = "none";
   }
 }
 function openUserMenu() {
@@ -3553,21 +3565,23 @@ function closeModal() { document.getElementById("modal-root").innerHTML = ""; }
 function showLoginModal(defaultTab = "login") {
   const modalRoot = document.getElementById("modal-root");
   if (!modalRoot) return;
+  const inputStyle = "width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;";
   modalRoot.innerHTML = `
-    <div class="modal-backdrop" onclick="if(event.target===this&&${isLoggedIn()})closeModal()">
-      <div class="modal" style="max-width:380px;width:100%;">
-        <div class="modal-header">
-          <h2 class="modal-title" id="auth-modal-title">Sign In</h2>
+    <div class="modal-bg" onclick="if(event.target===this&&${isLoggedIn()})closeModal()">
+      <div class="modal" style="max-width:400px;">
+        <div class="modal-head" style="padding:22px 24px 0;">
+          <h3 id="auth-modal-title" style="font-size:20px;font-weight:700;">Sign In</h3>
         </div>
-        <div class="modal-body">
-          <div style="display:flex;gap:0;margin-bottom:20px;border:1px solid var(--line);border-radius:10px;overflow:hidden;">
+        <div class="modal-body" style="padding:20px 24px 28px;">
+
+          <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:24px;">
             <button id="tab-login" onclick="switchAuthTab('login')"
-              style="flex:1;padding:9px;border:none;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+              style="flex:1;padding:10px;border:none;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
                      background:var(--primary);color:white;transition:background .15s;">
               Sign In
             </button>
             <button id="tab-register" onclick="switchAuthTab('register')"
-              style="flex:1;padding:9px;border:none;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+              style="flex:1;padding:10px;border:none;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
                      background:var(--surface);color:var(--ink-soft);transition:background .15s;">
               Register
             </button>
@@ -3577,41 +3591,42 @@ function showLoginModal(defaultTab = "login") {
             <div class="field">
               <label>Username</label>
               <input type="text" id="login-username" placeholder="your username" autocomplete="username"
-                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     style="${inputStyle}"
                      onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()" />
             </div>
             <div class="field">
               <label>Password</label>
               <input type="password" id="login-password" placeholder="your password" autocomplete="current-password"
-                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     style="${inputStyle}"
                      onkeydown="if(event.key==='Enter')submitLogin()" />
             </div>
-            <div id="login-error" style="color:#c0392b;font-size:12px;margin-bottom:8px;display:none;"></div>
-            <button class="btn primary" style="width:100%;padding:11px;" onclick="submitLogin()">Sign In</button>
+            <div id="login-error" style="color:#c0392b;font-size:12px;margin-bottom:10px;display:none;"></div>
+            <button class="btn primary" style="width:100%;padding:12px;font-size:14px;" onclick="submitLogin()">Sign In</button>
           </div>
 
           <div id="auth-form-register" style="display:none;">
             <div class="field">
               <label>Username</label>
-              <input type="text" id="reg-username" placeholder="3–20 chars, letters/numbers/underscore" autocomplete="username"
-                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+              <input type="text" id="reg-username" placeholder="3–20 chars: letters, numbers, underscore" autocomplete="username"
+                     style="${inputStyle}"
                      onkeydown="if(event.key==='Enter')document.getElementById('reg-password').focus()" />
             </div>
             <div class="field">
               <label>Password</label>
               <input type="password" id="reg-password" placeholder="min 8 characters" autocomplete="new-password"
-                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     style="${inputStyle}"
                      onkeydown="if(event.key==='Enter')document.getElementById('reg-confirm').focus()" />
             </div>
             <div class="field">
               <label>Confirm password</label>
               <input type="password" id="reg-confirm" placeholder="repeat password" autocomplete="new-password"
-                     style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;"
+                     style="${inputStyle}"
                      onkeydown="if(event.key==='Enter')submitRegister()" />
             </div>
-            <div id="reg-error" style="color:#c0392b;font-size:12px;margin-bottom:8px;display:none;"></div>
-            <button class="btn primary" style="width:100%;padding:11px;" onclick="submitRegister()">Create Account</button>
+            <div id="reg-error" style="color:#c0392b;font-size:12px;margin-bottom:10px;display:none;"></div>
+            <button class="btn primary" style="width:100%;padding:12px;font-size:14px;" onclick="submitRegister()">Create Account</button>
           </div>
+
         </div>
       </div>
     </div>`;
@@ -3856,6 +3871,7 @@ function openSettings() {
           </select>
         </div>
 
+        ${isLoggedIn() ? `
         <div class="field">
           <label>Data</label>
           <div class="row">
@@ -3875,6 +3891,7 @@ function openSettings() {
           <label style="color:#c0392b;">Danger zone</label>
           <button class="btn danger" onclick="resetAll()">Reset all data</button>
         </div>
+        ` : ""}
 
         <div class="field">
           <label>App</label>
