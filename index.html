@@ -2062,7 +2062,9 @@ function renderOverview(t) {
             ${myData.owesMe.length > 0 ? `
             <div class="my-stat">
               <div class="label">Owed to me</div>
-              <div class="value" style="color:#c0392b">Waiting on ${myData.owesMe.length}</div>
+              <div class="value" style="color:#c0392b;font-size:${myData.owesMe.length > 2 ? '12px' : '14px'};line-height:1.5;">
+                ${myData.owesMe.map(d => escapeHtml(d.name)).join('<br>')}
+              </div>
             </div>` : ""}
             ${myData.myOwed > 0 && myData.myUnsettled < 0.01 && myData.owesMe.length === 0 ? `
             <div class="my-stat">
@@ -2158,29 +2160,29 @@ function computeMyData(t) {
     if (isPayer) myPaid += cost / payers.length;
 
     const settled = e.settledBy || [];
-    if (isPayer || settled.includes(me)) mySettled += myShare;
+    const iHaveSettled = isPayer || settled.includes(me);
+    if (iHaveSettled) mySettled += myShare;
     else myUnsettled += myShare;
 
-    // Compute who owes whom for this expense
+    // Compute who owes whom, respecting settlements
     if (isPayer) {
-      // I paid: others who haven't settled owe me their share
+      // I paid: only count participants who haven't settled with me yet
       participants.forEach(p => {
         if (p === me || netWith[p] === undefined) return;
-        const theirShare = split[p] || 0;
-        if (!payers.includes(p)) {
-          netWith[p] += theirShare; // they owe me
+        if (!payers.includes(p) && !settled.includes(p)) {
+          netWith[p] += split[p] || 0;
         }
       });
-    } else if (payers.length > 0) {
-      // Someone else paid: I owe payers my share
+    } else if (payers.length > 0 && !iHaveSettled) {
+      // Someone else paid and I haven't settled: I still owe them
       payers.forEach(p => {
         if (p === me || netWith[p] === undefined) return;
-        netWith[p] -= myShare / payers.length; // I owe them
+        netWith[p] -= myShare / payers.length;
       });
     }
   });
 
-  // Simplify: aggregate into owesMe / iOwe lists
+  // Aggregate into owesMe / iOwe lists
   const owesMe = [], iOwe = [];
   Object.entries(netWith).forEach(([p, v]) => {
     if (v > 0.01) owesMe.push({ name: p, amount: v });
@@ -2189,7 +2191,9 @@ function computeMyData(t) {
   owesMe.sort((a, b) => b.amount - a.amount);
   iOwe.sort((a, b) => b.amount - a.amount);
 
-  return { myOwed, myPaid, mySettled, myUnsettled, owesMe, iOwe, net: myPaid - myOwed };
+  // Net balance: positive = owed to me, negative = I owe
+  const net = Object.values(netWith).reduce((s, v) => s + v, 0);
+  return { myOwed, myPaid, mySettled, myUnsettled, owesMe, iOwe, net };
 }
 
 // -------- ITINERARY TAB --------
