@@ -615,13 +615,13 @@ input, textarea, select { font-family: inherit; }
 }
 
 .postcard-wall {
-  column-count: 3;
-  column-gap: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   padding-top: 10px;
 }
 .past-year {
-  break-inside: avoid;
-  margin-bottom: 18px;
+  margin-bottom: 6px;
 }
 .past-year-header {
   display: inline-flex; align-items: center; gap: 8px;
@@ -631,6 +631,23 @@ input, textarea, select { font-family: inherit; }
   border: 1px solid var(--line);
   padding: 6px 10px; border-radius: 999px;
   margin-bottom: 12px;
+}
+
+.postcard-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(240px, 1fr);
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x mandatory;
+}
+.postcard-row .postcard { scroll-snap-align: start; }
+
+.postcard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
 }
 
 .postcard {
@@ -700,11 +717,8 @@ input, textarea, select { font-family: inherit; }
 }
 .postcard-edit:hover { color: var(--primary); border-color: var(--primary); }
 
-@media (max-width: 1100px) {
-  .postcard-wall { column-count: 2; }
-}
 @media (max-width: 760px) {
-  .postcard-wall { column-count: 1; }
+  .postcard-row { grid-auto-columns: minmax(220px, 1fr); }
   .year-map { width: 100%; }
 }
 
@@ -2321,10 +2335,12 @@ function renderHome() {
               return `
                 <div class="past-year" id="past-year-${y}" data-year="${y}">
                   <div class="past-year-header">${y} · ${tripsForYear.length} trip${tripsForYear.length === 1 ? "" : "s"}</div>
-                  ${tripsForYear.map((t, i) => renderPostcard(t, i + idx)).join("")}
+                  <div class="postcard-row">
+                    ${tripsForYear.map((t, i) => renderPostcard(t, i + idx)).join("")}
+                  </div>
                 </div>`;
             }).join("")
-          : `<div class="trip-grid">${filteredTrips.map(renderTripCard).join("")}</div>`;
+          : `<div class="postcard-grid">${filteredTrips.map(renderPostcard).join("")}</div>`;
 
         return `
           <section class="past-section" id="past-root">
