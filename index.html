@@ -1070,6 +1070,47 @@ table.t tfoot td {
 }
 .tag .me-badge { font-size: 9px; opacity: 0.85; }
 
+/* Traveler groups */
+.group-lane {
+  border: 2px dashed var(--line); border-radius: 12px;
+  padding: 10px 12px; margin-top: 8px; min-height: 48px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.group-lane.drag-over { border-color: var(--primary); background: var(--primary-soft); }
+.group-lane-header {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+}
+.group-lane-name {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--ink-soft); flex: 1;
+  background: none; border: none; font-family: inherit; cursor: text; padding: 0;
+  min-width: 0;
+}
+.group-lane-name:focus { outline: none; color: var(--primary); }
+.group-chip-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  border: 1.5px solid var(--primary); color: var(--primary);
+  background: transparent; cursor: pointer; transition: all 0.15s; user-select: none;
+}
+.group-chip-btn.selected { background: var(--primary); color: white; }
+.group-chip-btn:hover { background: var(--primary); color: white; }
+.trav-draggable {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--primary-soft); color: var(--primary-dark);
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  cursor: grab; user-select: none;
+  transition: all 0.15s; margin: 2px;
+}
+.trav-draggable:active { cursor: grabbing; opacity: 0.6; }
+.trav-draggable.is-me { background: var(--primary); color: white; }
+.trav-draggable .remove-trav { opacity: 0.5; font-size: 11px; cursor: pointer; margin-left: 2px; }
+.trav-draggable .remove-trav:hover { opacity: 1; }
+.split-group-row {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+}
+
 /* My Summary panel */
 .my-summary {
   background: linear-gradient(135deg, var(--primary-soft) 0%, var(--surface-2) 100%);
@@ -1946,16 +1987,38 @@ function renderOverview(t) {
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;">
 
         <div class="stat" style="padding:16px;">
-          <div class="stat-label">Travelers</div>
-          <div style="margin-top:8px;">
-            ${(t.travelers||[]).length ? (t.travelers.map(p => {
-              if (shareReadOnly) {
-                return `<span class="tag">${escapeHtml(p)}</span>`;
-              }
-              const isMe = getMyTraveler(t.id) === p;
-              return `<span class="tag ${isMe?'is-me':''}" onclick="setMyTraveler('${escapeAttr(p)}')" title="${isMe ? 'This is you! Click to unset.' : 'Click to set as you'}">${escapeHtml(p)}${isMe ? ' <span class="me-badge">(You)</span>' : ''}</span>`;
-            }).join(" ")) : `<span class="muted text-sm">${shareReadOnly ? "No travelers listed." : "Add travelers below ↓"}</span>`}
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="stat-label" style="margin:0;">Travelers</div>
+            ${shareReadOnly ? "" : `<button class="btn sm ghost" onclick="openGroupsModal('${t.id}')">Groups →</button>`}
           </div>
+          ${(() => {
+            const groups = t.groups || [];
+            const travelers = t.travelers || [];
+            if (!travelers.length) return `<span class="muted text-sm">${shareReadOnly ? "No travelers listed." : "Add travelers below ↓"}</span>`;
+            if (shareReadOnly) return travelers.map(p => `<span class="tag">${escapeHtml(p)}</span>`).join(" ");
+            // Group-aware display: show groups first, then ungrouped
+            const grouped = new Set(groups.flatMap(g => g.members));
+            const ungrouped = travelers.filter(p => !grouped.has(p));
+            let html = "";
+            groups.forEach(g => {
+              const members = g.members.filter(p => travelers.includes(p));
+              if (!members.length) return;
+              html += `<div style="margin-bottom:8px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:4px;">${escapeHtml(g.name)}</div>
+                <div>${members.map(p => {
+                  const isMe = getMyTraveler(t.id) === p;
+                  return `<span class="tag ${isMe?'is-me':''}" onclick="setMyTraveler('${escapeAttr(p)}')" title="${isMe?'This is you! Click to unset.':'Click to set as you'}">${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}</span>`;
+                }).join(" ")}</div>
+              </div>`;
+            });
+            if (ungrouped.length) {
+              html += `<div>${ungrouped.map(p => {
+                const isMe = getMyTraveler(t.id) === p;
+                return `<span class="tag ${isMe?'is-me':''}" onclick="setMyTraveler('${escapeAttr(p)}')" title="${isMe?'This is you! Click to unset.':'Click to set as you'}">${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}</span>`;
+              }).join(" ")}</div>`;
+            }
+            return html;
+          })()}
           ${shareReadOnly ? "" : `
           <div style="margin-top:6px;"><span class="muted text-sm" style="text-transform:none;letter-spacing:0;font-weight:500;">Tap your name to track your share</span></div>
           <div style="margin-top:10px;">
@@ -2108,6 +2171,119 @@ function renderOverview(t) {
       })()}
     </div>
   `;
+}
+
+// -------- TRAVELER GROUPS --------
+function openGroupsModal(tripId) {
+  renderGroupsModal(tripId);
+}
+
+function renderGroupsModal(tripId) {
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  t.groups = t.groups || [];
+  const travelers = t.travelers || [];
+
+  const grouped = new Set(t.groups.flatMap(g => g.members.filter(p => travelers.includes(p))));
+  const ungrouped = travelers.filter(p => !grouped.has(p));
+
+  const lanesHtml = t.groups.map((g, gi) => {
+    const members = g.members.filter(p => travelers.includes(p));
+    return `
+      <div class="group-lane" id="glane-${gi}"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="dropTravelerIntoGroup(event,${gi},'${escapeAttr(tripId)}')">
+        <div class="group-lane-header">
+          <input class="group-lane-name" value="${escapeAttr(g.name)}"
+                 onchange="renameGroup(${gi},'${escapeAttr(tripId)}',this.value)"
+                 onblur="renameGroup(${gi},'${escapeAttr(tripId)}',this.value)" />
+          <button class="btn sm ghost" style="padding:2px 8px;font-size:11px;color:#c0392b;"
+                  onclick="deleteGroup(${gi},'${escapeAttr(tripId)}')">Remove</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;">
+          ${members.length ? members.map(p => travDraggableChip(p, gi)).join("") : `<span class="muted text-sm">Drag travelers here</span>`}
+        </div>
+      </div>`;
+  }).join("");
+
+  const ungroupedHtml = `
+    <div class="group-lane" id="glane-ungrouped" style="border-style:solid;background:var(--surface-2);"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="dropTravelerIntoGroup(event,-1,'${escapeAttr(tripId)}')">
+      <div class="group-lane-header">
+        <span class="group-lane-name" style="cursor:default;">Ungrouped</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;">
+        ${ungrouped.length ? ungrouped.map(p => travDraggableChip(p, -1)).join("") : `<span class="muted text-sm" style="font-size:12px;">All travelers are in groups</span>`}
+      </div>
+    </div>`;
+
+  showModal({
+    title: "Manage groups",
+    size: "sm",
+    body: `
+      <div style="font-size:13px;color:var(--ink-soft);margin-bottom:12px;">
+        Drag travelers between groups. Click a group name to rename it.
+      </div>
+      ${ungroupedHtml}
+      ${lanesHtml}
+      <button class="btn sm" style="margin-top:12px;width:100%;" onclick="addGroup('${escapeAttr(tripId)}')">+ New group</button>
+    `,
+    actions: [{ label: "Done", primary: true, onClick: () => { closeModal(); render(); } }],
+  });
+}
+
+function travDraggableChip(name, groupIndex) {
+  return `<span class="trav-draggable" draggable="true"
+    ondragstart="event.dataTransfer.setData('text/plain','${escapeAttr(name)}|${groupIndex}')">${escapeHtml(name)}</span>`;
+}
+
+function dropTravelerIntoGroup(event, targetGroupIndex, tripId) {
+  event.preventDefault();
+  document.querySelectorAll('.group-lane').forEach(el => el.classList.remove('drag-over'));
+  const data = event.dataTransfer.getData('text/plain');
+  const [name, fromStr] = data.split('|');
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t || !name) return;
+  t.groups = t.groups || [];
+
+  // Remove from current group (if any)
+  t.groups.forEach(g => { g.members = g.members.filter(m => m !== name); });
+
+  // Add to target group
+  if (targetGroupIndex >= 0 && t.groups[targetGroupIndex]) {
+    if (!t.groups[targetGroupIndex].members.includes(name)) {
+      t.groups[targetGroupIndex].members.push(name);
+    }
+  }
+  saveState();
+  renderGroupsModal(tripId);
+}
+
+function addGroup(tripId) {
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  t.groups = t.groups || [];
+  t.groups.push({ id: uid(), name: `Group ${t.groups.length + 1}`, members: [] });
+  saveState();
+  renderGroupsModal(tripId);
+}
+
+function renameGroup(groupIndex, tripId, newName) {
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t || !t.groups[groupIndex]) return;
+  t.groups[groupIndex].name = (newName || "").trim() || t.groups[groupIndex].name;
+  saveState();
+}
+
+function deleteGroup(groupIndex, tripId) {
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  t.groups.splice(groupIndex, 1);
+  saveState();
+  renderGroupsModal(tripId);
 }
 
 function addTraveler(name) {
@@ -2860,6 +3036,20 @@ function renderSplitEditor(i) {
 
     <div class="field">
       <label>Who's involved? (${participants.length} of ${allTravelers.length})</label>
+      ${(() => {
+        const groups = (t.groups || []).filter(g => g.members.filter(p => allTravelers.includes(p)).length > 0);
+        if (!groups.length) return "";
+        return `<div class="split-group-row">
+          ${groups.map(g => {
+            const members = g.members.filter(p => allTravelers.includes(p));
+            const allOn = members.every(p => (e.splitAmong || allTravelers).includes(p));
+            return `<button class="group-chip-btn ${allOn?'selected':''}"
+              onclick="toggleGroupParticipants(${i}, ${JSON.stringify(members)})">
+              ${escapeHtml(g.name)} <span style="opacity:0.7;font-weight:400;">${members.length}</span>
+            </button>`;
+          }).join("")}
+        </div>`;
+      })()}
       <div class="split-participants">
         ${allTravelers.map(p => {
           const on = (e.splitAmong || allTravelers).includes(p);
@@ -2946,6 +3136,21 @@ function setAllSplitParticipants(i, clear) {
   const t = currentTrip();
   const e = t.expenses[i];
   e.splitAmong = clear ? [] : (t.travelers || []).slice();
+  saveState();
+  renderSplitEditor(i);
+}
+
+function toggleGroupParticipants(i, members) {
+  const t = currentTrip();
+  const e = t.expenses[i];
+  e.splitAmong = e.splitAmong || (t.travelers || []).slice();
+  const allOn = members.every(p => e.splitAmong.includes(p));
+  if (allOn) {
+    e.splitAmong = e.splitAmong.filter(p => !members.includes(p));
+  } else {
+    members.forEach(p => { if (!e.splitAmong.includes(p)) e.splitAmong.push(p); });
+  }
+  if (e.splitDetails) { Object.keys(e.splitDetails).forEach(k => { if (!e.splitAmong.includes(k)) delete e.splitDetails[k]; }); }
   saveState();
   renderSplitEditor(i);
 }
