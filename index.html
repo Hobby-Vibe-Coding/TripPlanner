@@ -407,6 +407,14 @@ input, textarea, select { font-family: inherit; }
 }
 .section-head h2 { font-size: 22px; }
 .section-head .muted { color: var(--ink-soft); font-size: 14px; margin-left: 8px; font-weight: 500; }
+.year-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.year-pill {
+  padding: 4px 12px; border-radius: 999px; border: 1.5px solid var(--line);
+  background: transparent; font-size: 13px; font-weight: 600; color: var(--ink-soft);
+  cursor: pointer; transition: all 0.15s;
+}
+.year-pill:hover { border-color: var(--primary); color: var(--primary); }
+.year-pill.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
 
 .trip-grid {
   display: grid; gap: 18px;
@@ -649,6 +657,8 @@ table.t td input, table.t td textarea, table.t td select {
   border-radius: 7px; color: var(--ink);
   font-size: 13px;
 }
+table.t .col-note { min-width: 220px; width: 28%; }
+table.t td.col-note textarea { min-height: 56px; resize: vertical; line-height: 1.4; }
 table.t td input:hover, table.t td textarea:hover, table.t td select:hover {
   border-color: var(--line);
 }
@@ -870,7 +880,7 @@ table.t tfoot td {
 .itin-cell.slot.filled.slot-past .slot-content {
   opacity: 0.3; filter: grayscale(0.5);
 }
-.itin-cell.slot.filled.slot-past textarea { pointer-events: none; }
+.itin-cell.slot.filled.slot-past textarea { pointer-events: auto; }
 @media print { .itin-now-line { display: none !important; } }
 /* Reservation badge inside itinerary slot */
 .slot-res-badge {
@@ -1842,6 +1852,7 @@ function saveState() {
 
 let state = DEFAULT_STATE();
 let route = { view: "home", tripId: null, tab: "overview" };
+let pastYearFilter = "all";
 
 // -------- HELPERS --------
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -1953,6 +1964,7 @@ function currentTrip() { return state.trips.find(t => t.id === route.tripId); }
 function goHome() { route = { view: "home", tripId: null, tab: "overview" }; render(); }
 function openTrip(id, tab) { route = { view: "trip", tripId: id, tab: tab || "overview" }; render(); }
 function setTab(t) { route.tab = t; render(); }
+function setPastYearFilter(y) { pastYearFilter = y; render(); }
 
 // -------- RENDER --------
 function render() {
@@ -2014,14 +2026,24 @@ function renderHome() {
           <div>Plan a new trip</div>
         </div>
       </div>
-      ${past.length ? `
-        <div class="section-head" style="margin-top:32px;">
-          <h2>Past <span class="muted">${past.length} ${past.length === 1 ? "trip" : "trips"}</span></h2>
-        </div>
-        <div class="trip-grid">
-          ${past.map(renderTripCard).join("")}
-        </div>
-      ` : ""}
+      ${past.length ? (() => {
+        const pastYears = [...new Set(past.map(t => (t.startDate || "").slice(0, 4)).filter(Boolean))].sort((a, b) => b - a);
+        const validFilter = pastYears.includes(pastYearFilter) ? pastYearFilter : "all";
+        const filtered = validFilter === "all" ? past : past.filter(t => (t.startDate || "").startsWith(validFilter));
+        const pillsHtml = pastYears.length > 1 ? `
+          <div class="year-pills">
+            <button class="year-pill ${validFilter === 'all' ? 'active' : ''}" onclick="setPastYearFilter('all')">All</button>
+            ${pastYears.map(y => `<button class="year-pill ${validFilter === y ? 'active' : ''}" onclick="setPastYearFilter('${y}')">${y}</button>`).join("")}
+          </div>` : "";
+        return `
+          <div class="section-head" style="margin-top:32px;">
+            <h2>Past <span class="muted">${filtered.length} ${filtered.length === 1 ? "trip" : "trips"}</span></h2>
+            ${pillsHtml}
+          </div>
+          <div class="trip-grid">
+            ${filtered.map(renderTripCard).join("")}
+          </div>`;
+      })() : ""}
     `}
   `;
 }
@@ -3884,7 +3906,7 @@ function renderReservations(t, printMode) {
       <td><input value="${escapeHtml(r.link||"")}" onchange="updateRes(${i},'link',this.value)" placeholder="https://..." />
         ${r.link ? `<a href="${escapeHtml(r.link)}" target="_blank" rel="noopener" class="text-sm" style="color:var(--primary);">Open ↗</a>` : ""}
       </td>
-      <td><input value="${escapeHtml(r.note||"")}" onchange="updateRes(${i},'note',this.value)" /></td>
+      <td class="col-note"><textarea rows="2" onchange="updateRes(${i},'note',this.value)">${escapeHtml(r.note||"")}</textarea></td>
       <td class="row-actions no-print">
         <button class="icon-btn" onclick="deleteRes(${i})" title="Delete">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -3911,7 +3933,7 @@ function renderReservations(t, printMode) {
           <table class="t">
             <thead><tr>
               <th>Item</th><th>Status</th><th>Booking time</th><th>Confirm #</th>
-              <th>Link</th><th>Note</th><th class="no-print"></th>
+              <th>Link</th><th class="col-note">Note</th><th class="no-print"></th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
