@@ -371,7 +371,7 @@ input, textarea, select { font-family: inherit; }
 /* ===========================================================
    APP LAYOUT
    =========================================================== */
-.app { max-width: 1240px; margin: 0 auto; padding: 28px; }
+.app { max-width: 1600px; margin: 0 auto; padding: 28px; }
 .app-print-only { display: none; }
 @media print {
   .nav, .fab, #modal-root, .no-print { display: none !important; }
@@ -764,12 +764,19 @@ table.t tfoot td {
   background: var(--surface-solid); border: 1px solid var(--line);
   border-radius: 8px; padding: 6px 10px; font-size: 13px; color: var(--ink);
 }
-.itin-grid-wrap { overflow-x: auto; }
+.itin-grid-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-solid);
+  -webkit-overflow-scrolling: touch;
+}
 .itin-grid {
   display: grid; gap: 1px;
   background: var(--line);
-  border: 1px solid var(--line);
-  border-radius: 12px; overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
   min-width: max-content;
 }
 .itin-cell {
@@ -892,13 +899,20 @@ table.t tfoot td {
 }
 .slot-addr-input::placeholder { color: var(--ink-soft); opacity: 0.55; }
 .slot-addr-input:focus { border-color: var(--primary); }
+.slot-addr-row { display: flex; align-items: flex-start; gap: 4px; margin-top: 4px; }
 .slot-addr-link {
-  display: inline-flex; align-items: flex-start; gap: 3px;
-  margin-top: 4px; font-size: 10px; color: var(--ink-soft);
+  display: inline-flex; align-items: flex-start; gap: 3px; flex: 1;
+  font-size: 10px; color: var(--ink-soft);
   text-decoration: none; line-height: 1.35; word-break: break-word;
 }
 .slot-addr-link:hover { color: var(--primary); text-decoration: underline; }
 .slot-addr-link svg { width: 10px; height: 10px; flex-shrink: 0; margin-top: 1px; }
+.slot-addr-clear {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  font-size: 9px; color: var(--ink-soft); padding: 0 2px; line-height: 1;
+  opacity: 0; transition: opacity 0.15s;
+}
+.itin-cell.slot.filled:hover .slot-addr-clear { opacity: 1; }
 /* Mobile: tap target for activity dialog */
 .itin-cell.slot.filled .mobile-edit-btn {
   display: none; position: absolute; top: 4px; right: 4px;
@@ -2619,16 +2633,20 @@ function renderItinerary(t) {
 
       const addr = slot.address || '';
       const mapsUrl = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : '';
-      const addrInput = v && isEditing() ? `
-        <input class="slot-addr-input" value="${escapeHtml(addr)}" placeholder="📍 Add address..."
+      // No address yet → show input for entry. Address set → show link only (plus clear btn in edit mode).
+      const addrInput = v && isEditing() && !addr ? `
+        <input class="slot-addr-input" value="" placeholder="📍 Add address..."
                onchange="updateSlotField(${dIdx},${sIdx},'address',this.value)"
                onclick="event.stopPropagation()" />` : '';
       const addrLink = v && addr ? `
-        <a class="slot-addr-link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer"
-           onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          ${escapeHtml(addr)}
-        </a>` : '';
+        <div class="slot-addr-row">
+          <a class="slot-addr-link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer"
+             onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            ${escapeHtml(addr)}
+          </a>
+          ${isEditing() ? `<button class="slot-addr-clear" onclick="event.stopPropagation();updateSlotField(${dIdx},${sIdx},'address','')" title="Remove address">✕</button>` : ''}
+        </div>` : '';
 
       cells += `<div class="itin-cell slot ${v?"filled":""}" style="${gridRow}; ${gridCol};"
                      data-didx="${dIdx}" data-sidx="${sIdx}" data-span="${span}">
