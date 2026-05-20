@@ -839,6 +839,23 @@ table.t tfoot td {
   background: var(--primary); opacity: 0.5;
 }
 .drag-handle:hover::after { opacity: 1; height: 4px; }
+/* Current-time red line */
+.itin-grid { position: relative; }
+.itin-now-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: #e53935; z-index: 10; pointer-events: none;
+}
+.itin-now-line::before {
+  content: ''; position: absolute;
+  left: -1px; top: 50%; transform: translateY(-50%);
+  width: 10px; height: 10px; border-radius: 50%; background: #e53935;
+}
+/* Past slot dimming */
+.itin-cell.slot.filled.slot-past .slot-content {
+  opacity: 0.3; filter: grayscale(0.5);
+}
+.itin-cell.slot.filled.slot-past textarea { pointer-events: none; }
+@media print { .itin-now-line { display: none !important; } }
 /* Reservation badge inside itinerary slot */
 .slot-res-badge {
   display: inline-flex; align-items: center; gap: 3px;
@@ -1597,6 +1614,109 @@ function startTzClock() {
 }
 function stopTzClock() { if (tzInterval) { clearInterval(tzInterval); tzInterval = null; } }
 
+// -------- ITINERARY TIME STATE --------
+let itinInterval = null;
+function stopItinClock() { if (itinInterval) { clearInterval(itinInterval); itinInterval = null; } }
+function startItinClock() {
+  stopItinClock();
+  tickItinClock();
+  itinInterval = setInterval(tickItinClock, 60_000);
+}
+function tickItinClock() { applyItineraryTimeState(); renderCurrentTimeLine(); }
+
+function parseSlotTime(dayDate, timeStr) {
+  if (!timeStr) return null;
+  const m = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!m) return null;
+  let h = parseInt(m[1]);
+  const min = parseInt(m[2]);
+  const ampm = m[3].toUpperCase();
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  const dt = new Date(dayDate);
+  dt.setHours(h, min, 0, 0);
+  return dt;
+}
+
+function applyItineraryTimeState() {
+  const t = currentTrip();
+  if (!t || !t.startDate) return;
+  const now = new Date();
+  const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
+  const startDate = parseDate(t.startDate);
+  if (!startDate) return;
+  const todayMidnight = new Date(now.toISOString().slice(0, 10) + 'T00:00:00');
+
+  document.querySelectorAll('.itin-cell.slot.filled').forEach(cell => {
+    const dIdx = parseInt(cell.dataset.didx);
+    const sIdx = parseInt(cell.dataset.sidx);
+    const span = parseInt(cell.dataset.span) || 1;
+    const dayDate = new Date(startDate);
+    dayDate.setDate(dayDate.getDate() + dIdx);
+    // Days before today are always past
+    if (dayDate < todayMidnight) { cell.classList.add('slot-past'); return; }
+    const startDt = parseSlotTime(dayDate, slots[sIdx]);
+    const endDt   = parseSlotTime(dayDate, slots[Math.min(sIdx + span, slots.length - 1)]);
+    if (!startDt || !endDt) return;
+    const isOngoing = startDt <= now && now < endDt;
+    cell.classList.toggle('slot-past', !isOngoing && endDt <= now);
+  });
+}
+
+function renderCurrentTimeLine() {
+  document.querySelectorAll('.itin-now-line').forEach(el => el.remove());
+  const t = currentTrip();
+  if (!t || !t.startDate) return;
+  const now = new Date();
+  const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
+  const startDate = parseDate(t.startDate);
+  if (!startDate) return;
+
+  // Find today's day column index
+  const todayStr = now.toISOString().slice(0, 10);
+  let todayDIdx = -1;
+  for (let i = 0; i < t.itinerary.length; i++) {
+    const d = new Date(startDate); d.setDate(d.getDate() + i);
+    if (d.toISOString().slice(0, 10) === todayStr) { todayDIdx = i; break; }
+  }
+  if (todayDIdx === -1) return;
+
+  const grid = document.querySelector('.itin-grid');
+  if (!grid) return;
+  // Time-column cells (skip "Time" header)
+  const timeCells = Array.from(grid.querySelectorAll('.itin-cell.time'))
+    .filter(c => c.textContent.trim() !== 'Time');
+  if (!timeCells.length) return;
+
+  const dayDate = new Date(startDate);
+  dayDate.setDate(dayDate.getDate() + todayDIdx);
+  const slotDates = slots.map(s => parseSlotTime(dayDate, s));
+  const gridRect = grid.getBoundingClientRect();
+  let yPos = null;
+
+  if (now <= slotDates[0]) {
+    yPos = timeCells[0].getBoundingClientRect().top - gridRect.top;
+  } else if (now >= slotDates[slotDates.length - 1]) {
+    yPos = timeCells[timeCells.length - 1].getBoundingClientRect().bottom - gridRect.top;
+  } else {
+    for (let i = 0; i < slotDates.length - 1; i++) {
+      if (slotDates[i] && slotDates[i + 1] && slotDates[i] <= now && now < slotDates[i + 1]) {
+        const r1 = timeCells[i].getBoundingClientRect();
+        const r2 = timeCells[i + 1].getBoundingClientRect();
+        const frac = (now - slotDates[i]) / (slotDates[i + 1] - slotDates[i]);
+        yPos = (r1.top - gridRect.top) + frac * (r2.top - r1.top);
+        break;
+      }
+    }
+  }
+
+  if (yPos === null) return;
+  const line = document.createElement('div');
+  line.className = 'itin-now-line';
+  line.style.top = `${yPos}px`;
+  grid.appendChild(line);
+}
+
 // -------- AUTH --------
 let currentUser = null; // { id, username } decoded from JWT, or null
 
@@ -1799,12 +1919,13 @@ function setTab(t) { route.tab = t; render(); }
 // -------- RENDER --------
 function render() {
   document.documentElement.setAttribute("data-theme", state.settings.theme || "beach");
-  stopTzClock();
+  stopTzClock(); stopItinClock();
   const root = document.getElementById("app-root");
   if (route.view === "home") root.innerHTML = renderHome();
   else if (route.view === "trip") root.innerHTML = renderTrip();
   document.querySelectorAll("textarea.autogrow").forEach(autoGrow);
   if (route.view === "trip" && currentTrip()?.timezone) startTzClock();
+  if (route.view === "trip" && route.tab === "itinerary") startItinClock();
 }
 
 function autoGrow(el) {
