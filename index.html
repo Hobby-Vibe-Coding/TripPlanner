@@ -2949,7 +2949,14 @@ function splitSummaryLabel(expense, allTravelers) {
 function renderExpenses(t, printMode) {
   const expenses = t.expenses || [];
   const travelers = t.travelers || [];
-  const total = expenses.reduce((s, e) => s + (parseFloat(e.cost) || 0), 0);
+  const me = getMyTraveler(t.id);
+
+  // Filter to expenses involving the selected traveler (keep original index for mutations)
+  const visibleWithIdx = expenses.map((e, i) => ({ e, i })).filter(({ e }) => {
+    if (!me) return true;
+    return (e.paidBy || []).includes(me) || expenseParticipants(e, travelers).includes(me);
+  });
+  const total = visibleWithIdx.reduce((s, { e }) => s + (parseFloat(e.cost) || 0), 0);
 
   // Aggregate owed/paid/settled using computeSplit logic
   const owedBy = {}; const paidBy = {}; const settledAmt = {}; const unsettledAmt = {}; const unsettledToMe = {};
@@ -2978,7 +2985,7 @@ function renderExpenses(t, printMode) {
     });
   });
 
-  const rows = expenses.map((e, i) => {
+  const rows = visibleWithIdx.map(({ e, i }) => {
     const allocated = splitTotalAllocated(e, travelers);
     const cost = parseFloat(e.cost) || 0;
     const balanced = Math.abs(allocated - cost) < 0.01;
@@ -3036,6 +3043,11 @@ function renderExpenses(t, printMode) {
         </div>
       </div>
 
+      ${me && expenses.length > 0 ? `
+        <div class="panel-sub" style="margin-bottom:8px;">
+          Showing ${visibleWithIdx.length} of ${expenses.length} expense${expenses.length !== 1 ? 's' : ''} involving <strong>${escapeHtml(me)}</strong>.
+          <span style="color:var(--ink-soft);font-size:12px;">(Select a different traveler or tap your name again in Overview to clear filter.)</span>
+        </div>` : ''}
       ${expenses.length === 0 ? `
         <div class="empty-mini">
           <h4>No expenses yet 💸</h4>
@@ -3050,7 +3062,7 @@ function renderExpenses(t, printMode) {
               <th>Date</th><th>Paid by</th><th>Note</th><th>Per Person</th>
               <th class="no-print"></th>
             </tr></thead>
-            <tbody>${rows}</tbody>
+            <tbody>${rows || `<tr><td colspan="8" style="padding:20px 12px;color:var(--ink-soft);text-align:center;">No expenses involve <strong>${escapeHtml(me)}</strong> yet.</td></tr>`}</tbody>
             <tfoot>
               <tr>
                 <td colspan="2">Total</td>
