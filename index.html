@@ -778,10 +778,10 @@ table.t tfoot td {
 }
 .itin-cell.time {
   background: var(--surface-2) !important;
-  font-weight: 700; color: var(--ink-soft);
-  font-size: 12px; font-variant-numeric: tabular-nums;
-  text-align: center; min-width: 70px;
-  display: grid; place-items: center;
+  font-weight: 600; color: var(--ink-soft);
+  font-size: 11px; font-variant-numeric: tabular-nums;
+  min-width: 70px; text-align: right; padding-right: 10px;
+  display: flex; align-items: flex-start; padding-top: 4px;
 }
 .itin-cell.daycol {
   font-weight: 700; text-align: center;
@@ -823,8 +823,9 @@ table.t tfoot td {
 .itin-cell.slot .slot-content:hover { border-color: var(--line); }
 .itin-cell.slot.filled .slot-content:hover { border-color: var(--accent); }
 .itin-cell.slot .slot-time-badge {
-  font-size: 10px; color: var(--ink-soft); font-weight: 600;
-  margin-bottom: 2px; pointer-events: none;
+  font-size: 10px; color: var(--ink-soft); font-weight: 500;
+  margin-bottom: 3px; pointer-events: none; line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 /* Drag handle for spanning */
 .itin-cell.slot.filled .drag-handle {
@@ -838,6 +839,25 @@ table.t tfoot td {
   background: var(--primary); opacity: 0.5;
 }
 .drag-handle:hover::after { opacity: 1; height: 4px; }
+/* Reservation badge inside itinerary slot */
+.slot-res-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600; padding: 1px 6px;
+  border-radius: 999px; margin-top: 4px;
+  pointer-events: none; white-space: nowrap;
+}
+.slot-res-badge.booked   { background: #d4edda; color: #1a6630; }
+.slot-res-badge.pending  { background: #fff3cd; color: #856404; }
+.slot-res-badge.cancelled { background: #f8d7da; color: #842029; }
+.slot-res-link-btn {
+  display: none; position: absolute; top: 4px; right: 4px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 5px; padding: 1px 4px; font-size: 10px;
+  cursor: pointer; color: var(--ink-soft); line-height: 1.4;
+  transition: all 0.15s;
+}
+.slot-res-link-btn.linked { display: block; color: var(--primary); border-color: var(--primary); }
+.itin-cell.slot.filled:hover .slot-res-link-btn { display: block; }
 /* Mobile: tap target for activity dialog */
 .itin-cell.slot.filled .mobile-edit-btn {
   display: none; position: absolute; top: 4px; right: 4px;
@@ -859,15 +879,6 @@ table.t tfoot td {
   padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
   font-size: 14px; background: var(--surface-solid); color: var(--ink);
 }
-.itin-day-actions {
-  display: flex; gap: 4px; justify-content: center; margin-top: 6px;
-}
-.itin-day-actions button {
-  background: transparent; border: 1px solid var(--line-strong);
-  border-radius: 6px; padding: 2px 6px; font-size: 10px;
-  color: var(--ink-soft); cursor: pointer;
-}
-.itin-day-actions button:hover { background: white; color: var(--ink); }
 
 /* ===========================================================
    RESERVATIONS
@@ -883,17 +894,38 @@ table.t tfoot td {
 .res-status.cancelled { background: #fadcd9; color: #a02b25; }
 
 /* ===========================================================
-   NOTES
+   NOTES – sticky board
    =========================================================== */
-.notes-area {
-  width: 100%; min-height: 280px;
-  background: var(--surface-solid);
-  border: 1px solid var(--line);
-  border-radius: 12px; padding: 16px 18px;
-  font: inherit; font-size: 14px; color: var(--ink);
-  line-height: 1.65; resize: vertical;
+.sticky-board { display: flex; flex-wrap: wrap; gap: 16px; }
+.sticky-note {
+  position: relative; width: 200px;
+  border-radius: 4px;
+  box-shadow: 2px 3px 10px rgba(0,0,0,.13);
+  padding: 28px 12px 12px;
+  display: flex; flex-direction: column;
 }
-.notes-area:focus { outline: none; border-color: var(--primary); }
+.sticky-note textarea {
+  width: 100%; height: 130px;
+  background: transparent; border: none; outline: none;
+  font: inherit; font-size: 13px; color: var(--ink);
+  resize: none; line-height: 1.6;
+}
+.sticky-note .note-remove {
+  position: absolute; top: 6px; right: 8px;
+  background: none; border: none; cursor: pointer;
+  color: rgba(0,0,0,.3); font-size: 18px; line-height: 1; padding: 0 2px;
+}
+.sticky-note .note-remove:hover { color: #ef4444; }
+.sticky-add {
+  width: 200px; height: 170px;
+  border: 2px dashed var(--line); border-radius: 4px;
+  background: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 6px;
+  color: var(--ink-2); font-size: 13px;
+  transition: border-color .15s, color .15s;
+}
+.sticky-add:hover { border-color: var(--primary); color: var(--primary); }
 
 /* ===========================================================
    MODAL
@@ -1728,7 +1760,7 @@ function newTrip(data) {
       slots: TIME_SLOTS_DEFAULT.map(t => ({ time: t, activity: "" }))
     })),
     reservations: [],
-    notes: "",
+    notes: [],
     timeSlots: TIME_SLOTS_DEFAULT.slice(),
     timezone: "",
     createdAt: new Date().toISOString()
@@ -1960,7 +1992,7 @@ function renderTrip() {
       ${renderPacking(t)}
       <h2 style="margin:24px 0 12px;">Reservations</h2>
       ${renderReservations(t, true)}
-      ${t.notes ? `<h2 style="margin:24px 0 12px;">Notes</h2><div class="panel">${escapeHtml(t.notes).replace(/\n/g,"<br>")}</div>` : ""}
+      ${getNotes(t).length ? `<h2 style="margin:24px 0 12px;">Notes</h2><div class="panel"><div class="sticky-board">${getNotes(t).map((n,i)=>`<div class="sticky-note" style="background:${NOTE_COLORS[i%NOTE_COLORS.length]};pointer-events:none"><div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(n.text)}</div></div>`).join("")}</div></div>` : ""}
     </div>
   `;
 }
@@ -2080,7 +2112,7 @@ function renderOverview(t) {
         <div class="stat" style="padding:16px;">
           <div class="stat-label">Day themes</div>
           <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px;">
-            ${themes.map(d => `<div class="text-sm"><strong>Day ${d.i}:</strong> <span style="font-family:'Caveat',cursive;font-size:16px;color:var(--primary);">${escapeHtml(d.theme)}</span></div>`).join("")}
+            ${themes.map(d => `<div style="font-size:15px;"><strong>Day ${d.i}:</strong> <span style="font-family:'Caveat',cursive;font-size:20px;color:var(--primary);">${escapeHtml(d.theme)}</span></div>`).join("")}
           </div>
         </div>
         ` : ""}
@@ -2406,10 +2438,6 @@ function renderItinerary(t) {
         <div class="dnum">Day ${i+1}</div>
         ${dayDate ? `<div class="ddate">${dayDate}</div>`:""}
         <input class="theme-in" value="${escapeHtml(d.theme||"")}" placeholder="Day theme..." onchange="updateDayTheme(${i}, this.value)" />
-        <div class="itin-day-actions no-print">
-          <button onclick="addDay()">+ Day</button>
-          ${dayCount > 1 ? `<button onclick="removeDay(${i})">– Day</button>`:""}
-        </div>
       </div>`;
   });
 
@@ -2427,14 +2455,31 @@ function renderItinerary(t) {
 
       const gridRow = span > 1 ? `grid-row: ${sIdx+2} / span ${span}` : `grid-row: ${sIdx+2}`;
       const gridCol = `grid-column: ${dIdx+2}`;
-      const spanLabel = span > 1 ? `${slots[sIdx]} – ${slots[sIdx+span-1] || slots[slots.length-1]}` : '';
+      // Always show time at top of filled block; end time = next slot after last covered (Teams style)
+      const endSlot = slots[sIdx + span] ?? slots[sIdx + span - 1];
+      const spanLabel = v ? (span > 1 ? `${slots[sIdx]} – ${endSlot}` : slots[sIdx]) : '';
+
+      const linkedResId = slot.reservationId || "";
+      const linkedRes = linkedResId ? (t.reservations || []).find(r => r.id === linkedResId) : null;
+      const resBadge = linkedRes ? `
+        <div class="slot-res-badge ${linkedRes.status || 'pending'}">
+          ${linkedRes.status === 'booked' ? '✓' : linkedRes.status === 'cancelled' ? '✗' : '⏳'}
+          ${escapeHtml(linkedRes.name)}
+        </div>` : '';
+      const resLinkBtn = v && isEditing() ? `
+        <button class="slot-res-link-btn ${linkedRes ? 'linked' : ''}"
+                onclick="openResLinkPicker(${dIdx},${sIdx})" title="${linkedRes ? 'Change reservation link' : 'Link reservation'}">
+          🔗
+        </button>` : '';
 
       cells += `<div class="itin-cell slot ${v?"filled":""}" style="${gridRow}; ${gridCol};"
                      data-didx="${dIdx}" data-sidx="${sIdx}" data-span="${span}">
         <div class="slot-content">
           ${spanLabel ? `<div class="slot-time-badge">${spanLabel}</div>` : ''}
           <textarea class="autogrow" onchange="updateSlot(${dIdx}, ${sIdx}, this.value)" placeholder="">${escapeHtml(v)}</textarea>
+          ${resBadge}
         </div>
+        ${resLinkBtn}
         ${v ? `<div class="drag-handle" onmousedown="startSlotDrag(event, ${dIdx}, ${sIdx})"></div>` : ''}
         ${v ? `<button class="mobile-edit-btn" onclick="openActivityTimeDialog(${dIdx}, ${sIdx})" title="Edit time">⏱</button>` : ''}
       </div>`;
@@ -2451,7 +2496,6 @@ function renderItinerary(t) {
       <div class="panel-head">
         <h3>Day-by-day itinerary</h3>
         <div class="actions">
-          <button class="btn sm" onclick="addDay()">+ Add day</button>
           <button class="btn sm" onclick="openTimeSlotsEditor()">⏱ Edit time slots</button>
         </div>
       </div>
@@ -2463,6 +2507,59 @@ function renderItinerary(t) {
       </div>
     </div>
   `;
+}
+
+function openResLinkPicker(dIdx, sIdx) {
+  const t = currentTrip();
+  const slot = t.itinerary[dIdx]?.slots[sIdx];
+  if (!slot) return;
+  const reservations = (t.reservations || []).filter(r => r.name?.trim());
+  const currentId = slot.reservationId || "";
+
+  // Compute which date this day corresponds to for auto-highlight
+  const startDate = parseDate(t.startDate);
+  let dayDateStr = "";
+  if (startDate) { const dd = new Date(startDate); dd.setDate(dd.getDate() + dIdx); dayDateStr = dd.toISOString().slice(0, 10); }
+
+  const STATUS_ICON = { booked: "✓", pending: "⏳", cancelled: "✗" };
+
+  showModal({
+    title: "Link reservation",
+    size: "sm",
+    body: `
+      <p style="font-size:13px;color:var(--ink-soft);margin-bottom:12px;">
+        Choose a reservation to link to <strong>${escapeHtml(slot.activity)}</strong>.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${reservations.length ? reservations.map(r => {
+          const isLinked = r.id === currentId;
+          const matchesDay = dayDateStr && r.dueDate?.startsWith(dayDateStr);
+          return `
+            <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer;
+                          border:1.5px solid ${isLinked ? 'var(--primary)' : 'var(--line)'};
+                          background:${isLinked ? 'var(--primary-soft)' : 'var(--surface-2)'};user-select:none;">
+              <input type="radio" name="res-pick" value="${r.id}" ${isLinked ? 'checked' : ''}
+                     style="accent-color:var(--primary);" onchange="linkSlotReservation(${dIdx},${sIdx},'${r.id}')" />
+              <span style="flex:1;font-size:13px;font-weight:600;">${escapeHtml(r.name)}</span>
+              <span class="slot-res-badge ${r.status||'pending'}" style="pointer-events:none;">
+                ${STATUS_ICON[r.status] || '⏳'} ${r.status || 'pending'}
+              </span>
+              ${matchesDay && !isLinked ? `<span style="font-size:10px;color:var(--primary);">same day</span>` : ''}
+            </label>`;
+        }).join("") : `<p class="muted text-sm">No named reservations yet. Add some in the Reservations tab.</p>`}
+      </div>
+      ${currentId ? `<button class="btn sm ghost" style="margin-top:12px;color:#c0392b;"
+                             onclick="linkSlotReservation(${dIdx},${sIdx},'')">✕ Remove link</button>` : ""}
+    `,
+    actions: [{ label: "Done", primary: true, onClick: () => { closeModal(); render(); } }],
+  });
+}
+
+function linkSlotReservation(dIdx, sIdx, resId) {
+  const t = currentTrip();
+  if (!t.itinerary[dIdx]?.slots[sIdx]) return;
+  t.itinerary[dIdx].slots[sIdx].reservationId = resId || undefined;
+  saveState();
 }
 
 function updateDayTheme(i, v) {
@@ -2479,19 +2576,7 @@ function updateSlot(dIdx, sIdx, v) {
   saveState();
   render();
 }
-function addDay() {
-  if (!guardEdit()) return;
-  const t = currentTrip();
-  t.itinerary.push({ id: uid(), theme: "", slots: (t.timeSlots||TIME_SLOTS_DEFAULT).map(time => ({ time, activity: "", span: 1 })) });
-  saveState(); render();
-}
-function removeDay(i) {
-  if (!guardEdit()) return;
-  const t = currentTrip();
-  if (t.itinerary.length <= 1) return;
-  if (!confirm("Remove this day from the itinerary?")) return;
-  t.itinerary.splice(i, 1); saveState(); render();
-}
+
 function openTimeSlotsEditor() {
   if (!guardEdit()) return;
   const t = currentTrip();
@@ -3652,16 +3737,59 @@ function deleteRes(i) {
 }
 
 // -------- NOTES TAB --------
+const NOTE_COLORS = ["#fef9c3","#dcfce7","#dbeafe","#fce7f3","#ffe4e6"];
+
+function getNotes(t) {
+  if (Array.isArray(t.notes)) return t.notes;
+  // migrate legacy string
+  if (t.notes) return [{ id: uid(), text: t.notes }];
+  return [];
+}
+
 function renderNotes(t) {
+  const notes = getNotes(t);
+  const cards = notes.map((n, i) => `
+    <div class="sticky-note" style="background:${NOTE_COLORS[i % NOTE_COLORS.length]}">
+      <button class="note-remove" onclick="removeNote('${n.id}')" title="Remove note">×</button>
+      <textarea placeholder="Write something..." oninput="updateNote('${n.id}', this.value)">${escapeHtml(n.text)}</textarea>
+    </div>`).join("");
   return `
     <div class="panel">
-      <div class="panel-head">
-        <h3>Notes & ideas</h3>
+      <div class="panel-head"><h3>Notes & ideas</h3></div>
+      <div class="panel-sub" style="margin-bottom:20px;">Jot down anything — links, restaurant ideas, packing reminders, contact numbers...</div>
+      <div class="sticky-board">
+        ${cards}
+        <button class="sticky-add" onclick="addNote()">
+          <span style="font-size:24px;line-height:1">+</span>
+          <span>Add Note</span>
+        </button>
       </div>
-      <div class="panel-sub">Jot down anything — links, restaurant ideas, packing reminders, contact numbers...</div>
-      <textarea class="notes-area" placeholder="Start typing..." oninput="updateTrip('notes', this.value)">${escapeHtml(t.notes||"")}</textarea>
     </div>
   `;
+}
+
+function addNote() {
+  if (!guardEdit()) return;
+  const t = currentTrip(); if (!t) return;
+  if (!Array.isArray(t.notes)) t.notes = getNotes(t);
+  t.notes.push({ id: uid(), text: "" });
+  saveState(); render();
+}
+
+function removeNote(id) {
+  if (!guardEdit()) return;
+  const t = currentTrip(); if (!t) return;
+  if (!Array.isArray(t.notes)) t.notes = getNotes(t);
+  t.notes = t.notes.filter(n => n.id !== id);
+  saveState(); render();
+}
+
+function updateNote(id, text) {
+  if (!guardEdit()) return;
+  const t = currentTrip(); if (!t) return;
+  if (!Array.isArray(t.notes)) t.notes = getNotes(t);
+  const n = t.notes.find(n => n.id === id);
+  if (n) { n.text = text; saveState(); }
 }
 
 // -------- TRIP-LEVEL UPDATES --------
@@ -3679,16 +3807,21 @@ function updateTripDates(which, value) {
   if (!guardEdit()) return;
   const t = currentTrip(); if (!t) return;
   if (which === "start") t.startDate = value; else t.endDate = value;
-  // Resize itinerary if needed
-  if (t.startDate && t.endDate) {
-    const dur = tripDuration(t);
-    if (dur && dur > t.itinerary.length) {
-      while (t.itinerary.length < dur) {
-        t.itinerary.push({ id: uid(), theme: "", slots: (t.timeSlots||TIME_SLOTS_DEFAULT).map(time => ({ time, activity: "" })) });
-      }
-    }
-  }
+  syncItineraryToDateRange(t);
   saveState(); render();
+}
+
+function syncItineraryToDateRange(t) {
+  if (!t.startDate || !t.endDate) return;
+  const dur = tripDuration(t);
+  if (dur === null || dur < 0) return;
+  const targetDays = dur + 1; // calendar days inclusive of start and end
+  while (t.itinerary.length < targetDays) {
+    t.itinerary.push({ id: uid(), theme: "", slots: (t.timeSlots||TIME_SLOTS_DEFAULT).map(time => ({ time, activity: "" })) });
+  }
+  if (t.itinerary.length > targetDays) {
+    t.itinerary = t.itinerary.slice(0, targetDays);
+  }
 }
 function confirmDeleteTrip() {
   const t = currentTrip(); if (!t) return;
