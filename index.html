@@ -1679,6 +1679,17 @@ function fmtDate(dateStr, opts={month:"short",day:"numeric",year:"numeric"}) {
   const d = parseDate(dateStr); if (!d) return "";
   return d.toLocaleDateString(undefined, opts);
 }
+function fmtBookingTime(val) {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d)) return val;
+  const hasTime = val.includes("T") && !val.endsWith("T");
+  if (hasTime) {
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " +
+           d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
 function tripDuration(t) {
   if (!t.startDate || !t.endDate) return null;
   return daysBetween(parseDate(t.startDate), parseDate(t.endDate)) + 1;
@@ -1846,7 +1857,7 @@ function renderTrip() {
     ? (t.expenses || []).filter(e => expenseParticipants(e, t.travelers || []).includes(_myTraveler))
         .reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
     : null;
-  const reservOpen = (t.reservations || []).filter(r => r.status !== "booked").length;
+  const reservOpen = (t.reservations || []).filter(r => r.status !== "booked" && r.name?.trim()).length;
   const packTotal = t.packing.reduce((s, c) => s + c.items.length, 0);
   const packDone = t.packing.reduce((s, c) => s + c.items.filter(i => i.packed).length, 0);
 
@@ -1975,7 +1986,7 @@ function svgIcon(name) {
 function renderOverview(t) {
   const totalSpend = (t.expenses || []).reduce((s, e) => s + (parseFloat(e.cost) || 0), 0);
   const numPeople = Math.max(1, (t.travelers || []).length);
-  const nextRes = (t.reservations || []).filter(r => r.status !== "booked").slice(0, 3);
+  const nextRes = (t.reservations || []).filter(r => r.status !== "booked" && r.name?.trim()).slice(0, 3);
   const themes = (t.itinerary || []).map((d, i) => ({ i: i+1, theme: d.theme })).filter(x => x.theme);
   const shareReadOnly = document.documentElement.getAttribute("data-share") === "read";
   return `
@@ -2078,7 +2089,7 @@ function renderOverview(t) {
         <div class="stat" style="padding:16px;">
           <div class="stat-label">⚠️ Need to book</div>
           <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            ${nextRes.map(r => `<div class="text-sm">• ${escapeHtml(r.name)}${r.dueDate ? ` <span class="muted">by ${fmtDate(r.dueDate,{month:"short",day:"numeric"})}</span>`:""}</div>`).join("")}
+            ${nextRes.map(r => `<div class="text-sm">• ${escapeHtml(r.name)}${r.dueDate ? ` <span class="muted">by ${fmtBookingTime(r.dueDate)}</span>`:""}</div>`).join("")}
           </div>
           <button class="btn sm" style="margin-top:10px;" onclick="setTab('reservations')">View all →</button>
         </div>
@@ -3583,7 +3594,7 @@ function renderReservations(t, printMode) {
         </select>
         <span class="res-status ${r.status||"pending"}" style="margin-top:4px;">${(r.status||"pending")}</span>
       </td>
-      <td><input type="date" value="${r.dueDate||""}" onchange="updateRes(${i},'dueDate',this.value)" /></td>
+      <td><input type="datetime-local" value="${r.dueDate||""}" onchange="updateRes(${i},'dueDate',this.value)" style="font-size:12px;" /></td>
       <td><input value="${escapeHtml(r.confNum||"")}" onchange="updateRes(${i},'confNum',this.value)" placeholder="—" /></td>
       <td><input value="${escapeHtml(r.link||"")}" onchange="updateRes(${i},'link',this.value)" placeholder="https://..." />
         ${r.link ? `<a href="${escapeHtml(r.link)}" target="_blank" rel="noopener" class="text-sm" style="color:var(--primary);">Open ↗</a>` : ""}
@@ -3614,7 +3625,7 @@ function renderReservations(t, printMode) {
         <div class="t-wrap">
           <table class="t">
             <thead><tr>
-              <th>Item</th><th>Status</th><th>Book by</th><th>Confirm #</th>
+              <th>Item</th><th>Status</th><th>Booking time</th><th>Confirm #</th>
               <th>Link</th><th>Note</th><th class="no-print"></th>
             </tr></thead>
             <tbody>${rows}</tbody>
