@@ -782,6 +782,15 @@ table.t tfoot td {
   font-size: 11px; font-variant-numeric: tabular-nums;
   min-width: 70px; text-align: right; padding-right: 10px;
   display: flex; align-items: flex-start; padding-top: 4px;
+  /* Sticky time column */
+  position: sticky; left: 0; z-index: 2;
+}
+/* "Time" header cell — centered, higher z so it covers time labels when scrolling */
+.itin-cell.time.itin-time-hdr {
+  display: grid; place-items: center;
+  text-align: center; padding: 8px 10px;
+  font-size: 12px; font-weight: 700;
+  z-index: 3;
 }
 .itin-cell.daycol {
   font-weight: 700; text-align: center;
@@ -875,6 +884,21 @@ table.t tfoot td {
 }
 .slot-res-link-btn.linked { display: block; color: var(--primary); border-color: var(--primary); }
 .itin-cell.slot.filled:hover .slot-res-link-btn { display: block; }
+/* Address field inside itinerary slot */
+.slot-addr-input {
+  width: 100%; margin-top: 5px; padding: 2px 0;
+  font-size: 10px; color: var(--ink-soft); background: transparent;
+  border: none; border-bottom: 1px dashed var(--line-strong); outline: none;
+}
+.slot-addr-input::placeholder { color: var(--ink-soft); opacity: 0.55; }
+.slot-addr-input:focus { border-color: var(--primary); }
+.slot-addr-link {
+  display: inline-flex; align-items: flex-start; gap: 3px;
+  margin-top: 4px; font-size: 10px; color: var(--ink-soft);
+  text-decoration: none; line-height: 1.35; word-break: break-word;
+}
+.slot-addr-link:hover { color: var(--primary); text-decoration: underline; }
+.slot-addr-link svg { width: 10px; height: 10px; flex-shrink: 0; margin-top: 1px; }
 /* Mobile: tap target for activity dialog */
 .itin-cell.slot.filled .mobile-edit-btn {
   display: none; position: absolute; top: 4px; right: 4px;
@@ -2550,7 +2574,7 @@ function renderItinerary(t) {
   let cells = "";
 
   // Header row (grid row 1)
-  cells += `<div class="itin-cell time" style="grid-row:1; grid-column:1;">Time</div>`;
+  cells += `<div class="itin-cell time itin-time-hdr" style="grid-row:1; grid-column:1;">Time</div>`;
   t.itinerary.forEach((d, i) => {
     let dayDate = "";
     if (startDate) { const dd = new Date(startDate); dd.setDate(dd.getDate() + i); dayDate = dd.toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" }); }
@@ -2593,11 +2617,26 @@ function renderItinerary(t) {
           🔗
         </button>` : '';
 
+      const addr = slot.address || '';
+      const mapsUrl = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : '';
+      const addrInput = v && isEditing() ? `
+        <input class="slot-addr-input" value="${escapeHtml(addr)}" placeholder="📍 Add address..."
+               onchange="updateSlotField(${dIdx},${sIdx},'address',this.value)"
+               onclick="event.stopPropagation()" />` : '';
+      const addrLink = v && addr ? `
+        <a class="slot-addr-link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer"
+           onclick="event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          ${escapeHtml(addr)}
+        </a>` : '';
+
       cells += `<div class="itin-cell slot ${v?"filled":""}" style="${gridRow}; ${gridCol};"
                      data-didx="${dIdx}" data-sidx="${sIdx}" data-span="${span}">
         <div class="slot-content">
           ${spanLabel ? `<div class="slot-time-badge">${spanLabel}</div>` : ''}
           <textarea class="autogrow" onchange="updateSlot(${dIdx}, ${sIdx}, this.value)" placeholder="">${escapeHtml(v)}</textarea>
+          ${addrInput}
+          ${addrLink}
           ${resBadge}
         </div>
         ${resLinkBtn}
@@ -2681,6 +2720,16 @@ function linkSlotReservation(dIdx, sIdx, resId) {
   if (!t.itinerary[dIdx]?.slots[sIdx]) return;
   t.itinerary[dIdx].slots[sIdx].reservationId = resId || undefined;
   saveState();
+}
+function updateSlotField(dIdx, sIdx, field, value) {
+  if (!guardEdit()) return;
+  const t = currentTrip();
+  if (!t.itinerary[dIdx]?.slots[sIdx]) return;
+  t.itinerary[dIdx].slots[sIdx][field] = value || undefined;
+  saveState();
+  // Re-render only to update the address link (no full re-render needed for just saving)
+  // But we need the link to appear/disappear, so re-render the itinerary cell
+  render();
 }
 
 function updateDayTheme(i, v) {
