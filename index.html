@@ -1210,8 +1210,10 @@ table.t tfoot td {
 @media (hover: none) and (pointer: coarse) {
   .itin-cell.slot.filled .drag-handle { display: none !important; }
   .itin-cell.slot.filled .mobile-edit-btn { display: grid; }
-  /* Suppress hover-triggered show on touch — prevents the button from snapping into the tap target */
-  .itin-cell.slot.filled:hover .slot-res-link-btn:not(.linked) { display: none !important; }
+  /* Always show res-link-btn on touch (only exists in DOM when editing).
+     Since the button is already visible before any tap, it can't snap into the tap
+     target mid-gesture — eliminating the hover-intercept bug. */
+  .itin-cell.slot.filled .slot-res-link-btn { display: inline-flex; }
 }
 @media (max-width: 600px) {
   /* Single-day mobile view: fit grid to screen, no horizontal scroll */
