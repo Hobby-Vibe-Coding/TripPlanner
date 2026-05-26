@@ -1291,9 +1291,9 @@ table.t tfoot td {
 /* ===========================================================
    NOTES – sticky board
    =========================================================== */
-.sticky-board { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 100%; }
+.sticky-board { display: flex; flex-wrap: wrap; gap: 16px; }
 .sticky-note {
-  position: relative; width: 100%;
+  position: relative; width: 200px;
   border-radius: 4px;
   box-shadow: 2px 3px 10px rgba(0,0,0,.13);
   padding: 28px 12px 12px;
@@ -1312,7 +1312,7 @@ table.t tfoot td {
 }
 .sticky-note .note-remove:hover { color: #ef4444; }
 .sticky-add {
-  width: 100%; height: 170px;
+  width: 200px; height: 170px;
   border: 2px dashed var(--line); border-radius: 4px;
   background: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -1924,7 +1924,9 @@ table.t tfoot td {
   .share-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .res-link-input { display: none; }
   .res-open-btn { display: inline-flex; align-items: center; }
-  .sticky-board { grid-template-columns: 1fr; }
+  .sticky-board { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .sticky-note { width: 100%; }
+  .sticky-add { width: 100%; }
 }
 
 @media (max-width: 480px) {
