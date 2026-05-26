@@ -1167,7 +1167,7 @@ table.t tfoot td {
 /* Slot action button bar (res-link + mobile-edit) */
 .slot-btns {
   position: absolute; top: 4px; right: 4px;
-  display: flex; flex-direction: row-reverse; gap: 3px; align-items: center;
+  display: flex; flex-direction: row; gap: 3px; align-items: center;
 }
 .slot-res-link-btn {
   display: none;
@@ -1210,6 +1210,15 @@ table.t tfoot td {
 @media (hover: none) and (pointer: coarse) {
   .itin-cell.slot.filled .drag-handle { display: none !important; }
   .itin-cell.slot.filled .mobile-edit-btn { display: grid; }
+  /* Suppress hover-triggered show on touch — prevents the button from snapping into the tap target */
+  .itin-cell.slot.filled:hover .slot-res-link-btn:not(.linked) { display: none !important; }
+}
+@media (max-width: 600px) {
+  /* Single-day mobile view: fit grid to screen, no horizontal scroll */
+  .itin-grid { min-width: 0 !important; }
+  .itin-grid-wrap { overflow-x: hidden; }
+  .itin-cell { min-width: 0; }
+  .slot-addr-link { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; display: block; }
 }
 /* Mobile day navigation */
 .itin-day-nav {
@@ -3256,7 +3265,7 @@ function renderItinerary(t) {
           ${resBadge}
         </div>
         ${v ? `<div class="drag-handle" onmousedown="startSlotDrag(event, ${dIdx}, ${sIdx})"></div>` : ''}
-        ${v ? `<div class="slot-btns">${resLinkBtn}<button class="mobile-edit-btn" onclick="openActivityTimeDialog(${dIdx}, ${sIdx})" title="Edit time">⏱</button></div>` : ''}
+        ${v ? `<div class="slot-btns"><button class="mobile-edit-btn" onclick="openActivityTimeDialog(${dIdx}, ${sIdx})" title="Edit time">⏱</button>${resLinkBtn}</div>` : ''}
       </div>`;
     });
   });
