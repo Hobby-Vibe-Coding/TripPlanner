@@ -578,7 +578,7 @@ input, textarea, select { font-family: inherit; }
 .year-track::before {
   content: "";
   position: absolute;
-  left: 14px; right: 14px; top: 20px;
+  left: 14px; right: 14px; top: 18px;
   height: 4px; background: var(--line-strong);
   border-radius: 999px;
 }
@@ -818,9 +818,9 @@ input, textarea, select { font-family: inherit; }
 }
 .trip-header-row {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   gap: 22px;
-  align-items: start;
+  align-items: center;
   position: relative;
 }
 .trip-emoji {
@@ -833,24 +833,23 @@ input, textarea, select { font-family: inherit; }
   border: 1px solid var(--line);
 }
 .trip-emoji:hover { transform: scale(1.04); }
-.trip-meta { flex: 1; min-width: 0; }
-.trip-title-row {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 4px;
-}
+.trip-meta { min-width: 0; }
 .trip-title {
   font-size: 28px;
-  flex: 1; min-width: 0;
   display: flex; align-items: center;
 }
 .trip-title input {
   font: inherit; background: transparent; border: none;
   padding: 4px 6px; border-radius: 8px; width: 100%;
   border: 1px solid transparent; color: var(--ink);
+  min-width: 0;
 }
 .trip-title input:hover { border-color: var(--line); }
 .trip-title input:focus { outline: none; border-color: var(--primary); background: var(--surface-solid); }
-.trip-sub { color: var(--ink-soft); font-size: 14px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.trip-sub {
+  color: var(--ink-soft); font-size: 14px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+  margin-top: 12px; position: relative;
+}
 .trip-sub span { display: inline-flex; align-items: center; gap: 5px; }
 .trip-sub svg { width: 14px; height: 14px; opacity: 0.7; }
 .trip-sub-loc-tz { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -1857,6 +1856,10 @@ table.t tfoot td {
   .hero { flex-direction: column-reverse; align-items: flex-start; gap: 14px; }
   .hero-text h1 { font-size: 28px; }
   .hero-emoji { font-size: 54px; }
+  .trip-header-row { gap: 12px; }
+  .trip-emoji { width: 72px; height: 72px; font-size: 48px; border-radius: 18px; }
+  .trip-title { font-size: 22px; }
+  .trip-back-btn { padding: 7px 10px; font-size: 12px; }
   .trip-actions-bar { margin-top: 10px; }
   .trip-actions-bar .btn { padding: 8px 10px; font-size: 12px; }
   .app { padding: 18px; }
@@ -1872,7 +1875,7 @@ table.t tfoot td {
   .year-map { padding: 8px 10px; gap: 6px; }
   .year-map::before { content: "Swipe ->"; opacity: 0.75; }
   .year-track { gap: 12px; padding: 8px 10px 6px; }
-  .year-track::before { left: 10px; right: 10px; top: 16px; }
+  .year-track::before { left: 10px; right: 10px; top: 14px; }
   .year-handle { width: 16px; height: 16px; top: 16px; border-width: 2px; }
   .year-pill-mini { padding: 5px 8px; font-size: 11px; }
   .year-label { font-size: 11px; }
@@ -2530,46 +2533,44 @@ function renderTrip() {
       <div class="trip-header-row">
         <div class="trip-emoji" onclick="openEmojiPicker()" title="Change icon">${t.emoji}</div>
         <div class="trip-meta">
-          <div class="trip-title-row">
-            <div class="trip-title">
-              <input value="${escapeHtml(t.title)}" oninput="updateTrip('title', this.value)" placeholder="Trip name" ${isEditing() ? '' : 'readonly'} />
-            </div>
-            <button class="btn ghost share-hidden trip-back-btn" onclick="goHome()" title="Back to dashboard">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-              All trips
-            </button>
-          </div>
-          <div class="trip-sub">
-            <div class="trip-sub-loc-tz">
-              <span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                <input style="background:transparent;border:none;color:inherit;font:inherit;width:200px;"
-                       value="${escapeHtml(t.destination)}" oninput="updateTrip('destination', this.value)" placeholder="Destination" ${isEditing() ? '' : 'readonly'} />
-              </span>
-              ${isEditing() ? `
-              <span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <select style="background:transparent;border:none;color:inherit;font:inherit;font-size:13px;cursor:pointer;max-width:220px;"
-                        onchange="updateTrip('timezone', this.value)" title="Destination time zone">
-                  <option value="">Time zone (optional)</option>
-                  ${getTimezoneOptions(t.timezone || "")}
-                </select>
-              </span>` : (t.timezone ? `
-              <span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                ${t.timezone.replace(/_/g," ")}
-              </span>` : "")}
-            </div>
-            <span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <input type="date" style="background:transparent;border:none;color:inherit;font:inherit;"
-                     value="${t.startDate}" onchange="updateTripDates('start', this.value)" ${isEditing() ? '' : 'readonly'} />
-              →
-              <input type="date" style="background:transparent;border:none;color:inherit;font:inherit;"
-                     value="${t.endDate}" onchange="updateTripDates('end', this.value)" ${isEditing() ? '' : 'readonly'} />
-            </span>
+          <div class="trip-title">
+            <input value="${escapeHtml(t.title)}" oninput="updateTrip('title', this.value)" placeholder="Trip name" ${isEditing() ? '' : 'readonly'} />
           </div>
         </div>
+        <button class="btn ghost share-hidden trip-back-btn" onclick="goHome()" title="Back to dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          All trips
+        </button>
+      </div>
+      <div class="trip-sub">
+        <div class="trip-sub-loc-tz">
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <input style="background:transparent;border:none;color:inherit;font:inherit;width:200px;"
+                   value="${escapeHtml(t.destination)}" oninput="updateTrip('destination', this.value)" placeholder="Destination" ${isEditing() ? '' : 'readonly'} />
+          </span>
+          ${isEditing() ? `
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <select style="background:transparent;border:none;color:inherit;font:inherit;font-size:13px;cursor:pointer;max-width:220px;"
+                    onchange="updateTrip('timezone', this.value)" title="Destination time zone">
+              <option value="">Time zone (optional)</option>
+              ${getTimezoneOptions(t.timezone || "")}
+            </select>
+          </span>` : (t.timezone ? `
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ${t.timezone.replace(/_/g," ")}
+          </span>` : "")}
+        </div>
+        <span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <input type="date" style="background:transparent;border:none;color:inherit;font:inherit;"
+                 value="${t.startDate}" onchange="updateTripDates('start', this.value)" ${isEditing() ? '' : 'readonly'} />
+          →
+          <input type="date" style="background:transparent;border:none;color:inherit;font:inherit;"
+                 value="${t.endDate}" onchange="updateTripDates('end', this.value)" ${isEditing() ? '' : 'readonly'} />
+        </span>
       </div>
       <div class="trip-actions-bar no-print">
         <button class="btn" onclick="window.print()" title="Print / save as PDF">
