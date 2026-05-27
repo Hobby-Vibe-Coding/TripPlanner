@@ -3354,7 +3354,7 @@ function renderItinerary(t) {
 
 function openResLinkPicker(dIdx, sIdx) {
   const t = currentTrip();
-  const slot = t.itinerary[dIdx]?.slots[sIdx];
+  const slot = t.itinerary[dIdx]?.slots?.[sIdx];
   if (!slot) return;
   const reservations = (t.reservations || []).filter(r => r.name?.trim());
   const currentId = slot.reservationId || "";
