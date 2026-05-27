@@ -1523,6 +1523,24 @@ table.t tfoot td {
   box-shadow: 0 0 0 2px var(--primary-soft);
 }
 .tag .me-badge { font-size: 9px; opacity: 0.85; }
+.tag .trav-remove-x {
+  display: none;
+  background: none; border: none; padding: 0 0 0 2px;
+  font-size: 13px; line-height: 1; cursor: pointer;
+  color: inherit; opacity: 0.7; flex-shrink: 0;
+}
+.tag .trav-remove-x:hover { opacity: 1; }
+.trav-edit-mode .tag .trav-remove-x { display: inline; }
+.trav-edit-mode .tag { cursor: default; }
+.trav-edit-mode .tag:hover { background: var(--primary-soft); color: var(--primary-dark); }
+.trav-edit-mode .tag.is-me:hover { background: var(--primary); color: white; }
+.trav-edit-btn {
+  padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  border: 1px solid var(--line); background: transparent; cursor: pointer;
+  color: var(--ink-soft); transition: all 0.15s;
+}
+.trav-edit-btn:hover { border-color: var(--primary); color: var(--primary); }
+.trav-edit-btn.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
 
 /* Traveler groups */
 .group-lane {
@@ -2347,6 +2365,7 @@ function saveState() {
 let state = DEFAULT_STATE();
 let route = { view: "home", tripId: null, tab: "overview" };
 let pastYearFilter = "all";
+let travEditMode = false;
 
 // -------- HELPERS --------
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -2455,9 +2474,9 @@ function duplicateTrip(id, ev) {
 function currentTrip() { return state.trips.find(t => t.id === route.tripId); }
 
 // -------- ROUTING --------
-function goHome() { route = { view: "home", tripId: null, tab: "overview" }; render(); }
-function openTrip(id, tab) { itinMobileDay = 0; route = { view: "trip", tripId: id, tab: tab || "overview" }; render(); }
-function setTab(t) { route.tab = t; render(); }
+function goHome() { travEditMode = false; route = { view: "home", tripId: null, tab: "overview" }; render(); }
+function openTrip(id, tab) { itinMobileDay = 0; travEditMode = false; route = { view: "trip", tripId: id, tab: tab || "overview" }; render(); }
+function setTab(t) { travEditMode = false; route.tab = t; render(); }
 function setPastYearFilter(y) {
   pastYearFilter = y;
   render();
@@ -2761,7 +2780,10 @@ function renderOverview(t) {
         <div class="stat overview-travelers" style="padding:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="stat-label" style="margin:0;">Travelers</div>
-            ${shareReadOnly ? "" : `<button class="btn sm ghost" onclick="openGroupsModal('${t.id}')">Groups →</button>`}
+            ${shareReadOnly ? "" : `<div style="display:flex;gap:6px;align-items:center;">
+              <button class="trav-edit-btn${travEditMode?' active':''}" onclick="toggleTravEditMode()">${travEditMode ? "Done" : "✎ Edit"}</button>
+              <button class="btn sm ghost" onclick="openGroupsModal('${t.id}')">Groups →</button>
+            </div>`}
           </div>
           ${(() => {
             const groups = t.groups || [];
@@ -2771,7 +2793,8 @@ function renderOverview(t) {
             // Group-aware display: show groups first, then ungrouped
             const grouped = new Set(groups.flatMap(g => g.members));
             const ungrouped = travelers.filter(p => !grouped.has(p));
-            let html = "";
+            const wrapClass = travEditMode ? "trav-edit-mode" : "";
+            let html = `<div class="${wrapClass}">`;
             groups.forEach(g => {
               const members = g.members.filter(p => travelers.includes(p));
               if (!members.length) return;
@@ -2779,16 +2802,21 @@ function renderOverview(t) {
                 <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:4px;">${escapeHtml(g.name)}</div>
                 <div>${members.map(p => {
                   const isMe = getMyTraveler(t.id) === p;
-                  return `<span class="tag ${isMe?'is-me':''}" onclick="setMyTraveler('${escapeAttr(p)}')" title="${isMe?'This is you! Click to unset.':'Click to set as you'}">${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}</span>`;
+                  const click = travEditMode ? "" : `onclick="setMyTraveler('${escapeAttr(p)}')"`;
+                  const title = travEditMode ? "" : `title="${isMe?'This is you! Click to unset.':'Click to set as you'}"`;
+                  return `<span class="tag ${isMe?'is-me':''}" ${click} ${title}>${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}<button class="trav-remove-x" onclick="event.stopPropagation();removeTraveler('${escapeAttr(p)}')" title="Remove ${escapeAttr(p)}">✕</button></span>`;
                 }).join(" ")}</div>
               </div>`;
             });
             if (ungrouped.length) {
               html += `<div>${ungrouped.map(p => {
                 const isMe = getMyTraveler(t.id) === p;
-                return `<span class="tag ${isMe?'is-me':''}" onclick="setMyTraveler('${escapeAttr(p)}')" title="${isMe?'This is you! Click to unset.':'Click to set as you'}">${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}</span>`;
+                const click = travEditMode ? "" : `onclick="setMyTraveler('${escapeAttr(p)}')"`;
+                const title = travEditMode ? "" : `title="${isMe?'This is you! Click to unset.':'Click to set as you'}"`;
+                return `<span class="tag ${isMe?'is-me':''}" ${click} ${title}>${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}<button class="trav-remove-x" onclick="event.stopPropagation();removeTraveler('${escapeAttr(p)}')" title="Remove ${escapeAttr(p)}">✕</button></span>`;
               }).join(" ")}</div>`;
             }
+            html += `</div>`;
             return html;
           })()}
           ${shareReadOnly ? "" : `
@@ -3055,6 +3083,11 @@ function deleteGroup(groupIndex, tripId) {
   renderGroupsModal(tripId);
 }
 
+function toggleTravEditMode() {
+  if (!guardEdit()) return;
+  travEditMode = !travEditMode;
+  render();
+}
 function addTraveler(name) {
   if (!guardEdit()) return;
   name = (name || "").trim(); if (!name) return;
