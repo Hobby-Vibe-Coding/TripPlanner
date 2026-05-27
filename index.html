@@ -652,7 +652,7 @@ input, textarea, select { font-family: inherit; }
 
 .postcard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, minmax(240px, 1fr));
   gap: 16px;
 }
 
@@ -1171,7 +1171,7 @@ table.t tfoot td {
 }
 .slot-res-link-btn {
   display: none;
-  background: var(--surface); border: 1px solid var(--line);
+  background: var(--surface-solid); border: 1px solid var(--line);
   border-radius: 5px; padding: 2px 5px; font-size: 10px;
   cursor: pointer; color: var(--ink-soft); line-height: 1.4;
   transition: all 0.15s;
@@ -1203,25 +1203,25 @@ table.t tfoot td {
 /* Mobile: tap target for activity dialog */
 .itin-cell.slot.filled .mobile-edit-btn {
   display: none;
-  width: 22px; height: 22px; border-radius: 6px;
-  background: var(--primary); color: white; border: none;
-  font-size: 13px; cursor: pointer; line-height: 1;
+  background: var(--surface-solid); border: 1px solid var(--line);
+  border-radius: 5px; padding: 2px 5px; font-size: 10px;
+  cursor: pointer; color: var(--ink-soft); line-height: 1.4;
 }
 /* Delete button inside itinerary slot */
 .slot-delete-btn {
   display: none;
-  width: 22px; height: 22px; border-radius: 6px;
-  background: transparent; color: var(--ink-soft); border: none;
-  font-size: 14px; cursor: pointer; line-height: 1;
+  background: var(--surface-solid); border: 1px solid var(--line);
+  border-radius: 5px; padding: 2px 5px; font-size: 10px;
+  cursor: pointer; color: var(--ink-soft); line-height: 1.4;
   align-items: center; justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .slot-delete-btn:hover { background: #fbe9e7; color: #c0392b; }
-.itin-cell.slot.filled:hover .slot-delete-btn { display: flex; }
+.itin-cell.slot.filled:hover .slot-delete-btn { display: inline-flex; }
 @media (hover: none) and (pointer: coarse) {
   .itin-cell.slot.filled .drag-handle { display: none !important; }
   .itin-cell.slot.filled .mobile-edit-btn { display: flex; align-items: center; justify-content: center; }
-  .itin-cell.slot.filled .slot-delete-btn { display: flex; }
+  .itin-cell.slot.filled .slot-delete-btn { display: inline-flex; }
   /* Always show res-link-btn on touch (only exists in DOM when editing).
      Since the button is already visible before any tap, it can't snap into the tap
      target mid-gesture — eliminating the hover-intercept bug. */
@@ -2725,7 +2725,7 @@ function renderTrip() {
       </div>
     </div>
 
-    <div class="tabs no-print" style="align-items:center;justify-content:space-evenly">
+    <div class="tabs no-print" style="align-items:center;justify-content:space-around">
       ${allowedTabs.includes("overview") ? tabBtn("overview", "Overview", svgIcon("home")) : ""}
       ${allowedTabs.includes("itinerary") ? tabBtn("itinerary", "Itinerary", svgIcon("calendar")) : ""}
       ${allowedTabs.includes("expenses") ? tabBtn("expenses", "Expenses", svgIcon("dollar")) : ""}
