@@ -1207,9 +1207,21 @@ table.t tfoot td {
   background: var(--primary); color: white; border: none;
   font-size: 13px; cursor: pointer; line-height: 1;
 }
+/* Delete button inside itinerary slot */
+.slot-delete-btn {
+  display: none;
+  width: 22px; height: 22px; border-radius: 6px;
+  background: transparent; color: var(--ink-soft); border: none;
+  font-size: 14px; cursor: pointer; line-height: 1;
+  align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.slot-delete-btn:hover { background: #fbe9e7; color: #c0392b; }
+.itin-cell.slot.filled:hover .slot-delete-btn { display: flex; }
 @media (hover: none) and (pointer: coarse) {
   .itin-cell.slot.filled .drag-handle { display: none !important; }
   .itin-cell.slot.filled .mobile-edit-btn { display: flex; align-items: center; justify-content: center; }
+  .itin-cell.slot.filled .slot-delete-btn { display: flex; }
   /* Always show res-link-btn on touch (only exists in DOM when editing).
      Since the button is already visible before any tap, it can't snap into the tap
      target mid-gesture — eliminating the hover-intercept bug. */
@@ -3262,6 +3274,7 @@ function renderItinerary(t) {
       if (!d.slots[sIdx]) d.slots[sIdx] = { time, activity: "" };
       const slot = d.slots[sIdx];
       const v = slot.activity || "";
+      const isFilled = !!(v || slot.filled);
       const span = Math.min(slot.span || 1, slots.length - sIdx);
       for (let k = 1; k < span; k++) covered.add(sIdx + k);
 
@@ -3298,18 +3311,20 @@ function renderItinerary(t) {
           </a>
           ${isEditing() ? `<button class="slot-addr-clear" onclick="event.stopPropagation();updateSlotField(${dIdx},${sIdx},'address','')" title="Remove address">✕</button>` : ''}
         </div>` : '';
+      const deleteBtn = isFilled && isEditing() ? `
+        <button class="slot-delete-btn" onclick="event.stopPropagation();deleteSlot(${dIdx},${sIdx})" title="Remove activity">✕</button>` : '';
 
-      cells += `<div class="itin-cell slot ${v?"filled":""}" style="${gridRow}; ${gridCol};"
+      cells += `<div class="itin-cell slot ${isFilled?"filled":""}" style="${gridRow}; ${gridCol};"
                      data-didx="${dIdx}" data-sidx="${sIdx}" data-span="${span}">
         <div class="slot-content">
           ${spanLabel ? `<div class="slot-time-badge">${spanLabel}</div>` : ''}
-          <textarea class="autogrow" onchange="updateSlot(${dIdx}, ${sIdx}, this.value)" placeholder="">${escapeHtml(v)}</textarea>
+          <textarea class="autogrow" onchange="updateSlot(${dIdx}, ${sIdx}, this.value)" placeholder="${isFilled && !v ? 'Enter activity...' : ''}">${escapeHtml(v)}</textarea>
           ${addrInput}
           ${addrLink}
           ${resBadge}
         </div>
         ${v ? `<div class="drag-handle" onmousedown="startSlotDrag(event, ${dIdx}, ${sIdx})"></div>` : ''}
-        ${v ? `<div class="slot-btns"><button class="mobile-edit-btn" onclick="openActivityTimeDialog(${dIdx}, ${sIdx})" title="Edit time">⏱</button>${resLinkBtn}</div>` : ''}
+        ${isFilled ? `<div class="slot-btns">${v ? `<button class="mobile-edit-btn" onclick="openActivityTimeDialog(${dIdx}, ${sIdx})" title="Edit time">⏱</button>` : ''}${resLinkBtn}${deleteBtn}</div>` : ''}
       </div>`;
     });
   });
@@ -3423,11 +3438,38 @@ function updateSlot(dIdx, sIdx, v) {
   if (!guardEdit()) return;
   const t = currentTrip();
   if (!t.itinerary[dIdx].slots[sIdx]) t.itinerary[dIdx].slots[sIdx] = { time: (t.timeSlots||TIME_SLOTS_DEFAULT)[sIdx], activity: "" };
-  t.itinerary[dIdx].slots[sIdx].activity = v;
-  // Reset span if activity cleared
-  if (!v || !v.trim()) t.itinerary[dIdx].slots[sIdx].span = 1;
+  const slot = t.itinerary[dIdx].slots[sIdx];
+  const hasActivity = !!(v && v.trim());
+  slot.activity = v;
+  slot.filled = hasActivity;
+  if (!hasActivity) slot.span = 1;
   saveState();
   render();
+}
+function deleteSlot(dIdx, sIdx) {
+  if (!guardEdit()) return;
+  const t = currentTrip();
+  const slot = t.itinerary[dIdx]?.slots[sIdx];
+  if (!slot) return;
+  const label = slot.activity?.trim() ? `"${slot.activity.trim().substring(0, 40)}"` : "this activity";
+  showModal({
+    title: "Remove activity",
+    size: "sm",
+    body: `<p style="margin:0;font-size:14px;">Remove ${label} from the itinerary? This cannot be undone.</p>`,
+    actions: [
+      { label: "Cancel", onClick: closeModal },
+      { label: "Remove", danger: true, onClick: () => {
+        slot.activity = "";
+        slot.filled = false;
+        slot.span = 1;
+        delete slot.address;
+        delete slot.reservationId;
+        saveState();
+        closeModal();
+        render();
+      }}
+    ]
+  });
 }
 
 function openTimeSlotsEditor() {
@@ -3503,8 +3545,8 @@ function openTimeSlotsEditor() {
         t.timeSlots = slots;
         t.itinerary.forEach(d => {
           const oldMap = {};
-          (d.slots||[]).forEach(s => { oldMap[s.time] = { activity: s.activity, span: s.span }; });
-          d.slots = slots.map(time => ({ time, activity: (oldMap[time]||{}).activity || "", span: (oldMap[time]||{}).span || 1 }));
+          (d.slots||[]).forEach(s => { oldMap[s.time] = { activity: s.activity, span: s.span, filled: s.filled }; });
+          d.slots = slots.map(time => ({ time, activity: (oldMap[time]||{}).activity || "", span: (oldMap[time]||{}).span || 1, ...(oldMap[time]?.filled ? { filled: true } : {}) }));
         });
         saveState(); closeModal(); render();
       }}
@@ -3562,7 +3604,7 @@ function startSlotDrag(e, dIdx, sIdx) {
     let canSpan = true;
     for (let k = 1; k < newSpan; k++) {
       const coveredSlot = day.slots[sIdx + k];
-      if (coveredSlot && coveredSlot.activity && coveredSlot.activity.trim()) {
+      if (coveredSlot && (coveredSlot.filled || (coveredSlot.activity && coveredSlot.activity.trim()))) {
         newSpan = k; // stop before the filled slot
         break;
       }
