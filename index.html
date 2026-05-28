@@ -4231,17 +4231,6 @@ function renderExpenses(t, printMode) {
     </tr>
   `;}).join("");
 
-  // Build status line
-  const statusParts = [];
-  if (q) statusParts.push(`matching "<strong>${escapeHtml(expenseSearch)}</strong>"`);
-  if (me) statusParts.push(`involving <strong>${escapeHtml(me)}</strong>`);
-  const showingCount = printMode ? searchFiltered.length : Math.min(pagedItems.length, searchFiltered.length);
-  const statusLine = expenses.length > 0 && (q || me) ? `
-    <div class="panel-sub" style="margin-bottom:8px;">
-      Showing ${showingCount} of ${searchFiltered.length} expense${searchFiltered.length !== 1 ? 's' : ''}${statusParts.length ? ' ' + statusParts.join(' and ') : ''}.
-      ${me ? `<span style="color:var(--ink-soft);font-size:12px;">(Tap your name again in Overview to clear traveler filter.)</span>` : ''}
-    </div>` : '';
-
   return `
     <div class="panel">
       <div class="panel-head">
@@ -4253,8 +4242,8 @@ function renderExpenses(t, printMode) {
       </div>
 
       ${expenses.length > 0 ? `
-        <div class="no-print" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-          <div style="position:relative;flex:1;">
+        <div class="no-print" style="display:flex;align-items:center;margin-bottom:10px;">
+          <div style="flex:8;position:relative;">
             <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--ink-soft);pointer-events:none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input id="expense-search" type="text" placeholder="Search by name, category, payer…"
               value="${escapeHtml(expenseSearch)}"
@@ -4262,10 +4251,16 @@ function renderExpenses(t, printMode) {
               style="width:100%;padding:7px 10px 7px 30px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:var(--surface-2);box-sizing:border-box;" />
             ${expenseSearch ? `<button onclick="setExpenseSearch('')" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:16px;line-height:1;padding:0;" title="Clear">×</button>` : ''}
           </div>
+          <div style="flex:2;"></div>
+          <div style="flex:2;display:flex;align-items:center;justify-content:flex-end;gap:6px;font-size:13px;color:var(--ink-soft);white-space:nowrap;">
+            Rows:
+            <select onchange="setExpensePageSize(this.value)" style="padding:3px 6px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:13px;background:var(--surface-2);">
+              ${[5,10,15,20].map(n => `<option value="${n}" ${expensePageSize===n?'selected':''}>${n}</option>`).join('')}
+            </select>
+          </div>
         </div>
       ` : ''}
 
-      ${statusLine}
       ${expenses.length === 0 ? `
         <div class="empty-mini">
           <h4>No expenses yet 💸</h4>
@@ -4294,11 +4289,15 @@ function renderExpenses(t, printMode) {
 
         ${!printMode && searchFiltered.length > 0 ? `
         <div class="no-print" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:13px;">
-          <div style="display:flex;align-items:center;gap:6px;color:var(--ink-soft);">
-            Rows per page:
-            <select onchange="setExpensePageSize(this.value)" style="padding:3px 6px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:13px;background:var(--surface-2);">
-              ${[5,10,15,20].map(n => `<option value="${n}" ${expensePageSize===n?'selected':''}>${n}</option>`).join('')}
-            </select>
+          <div style="color:var(--ink-soft);">
+            ${(() => {
+              const parts = [];
+              if (q) parts.push(`matching "<strong>${escapeHtml(expenseSearch)}</strong>"`);
+              if (me) parts.push(`involving <strong>${escapeHtml(me)}</strong>`);
+              const count = searchFiltered.length;
+              return `Showing ${count} expense${count !== 1 ? 's' : ''}${parts.length ? ' ' + parts.join(' and ') : ''}.`
+                + (me ? ` <span style="font-size:11px;">(Tap your name in Overview to clear.)</span>` : '');
+            })()}
           </div>
           <div style="display:flex;align-items:center;gap:4px;">
             <span style="color:var(--ink-soft);margin-right:4px;">Page ${safePage+1} of ${totalPages}</span>
