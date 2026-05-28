@@ -3528,6 +3528,20 @@ function computeMyData(t) {
   return { myOwed, myPaid, mySettled, myUnsettled, owesMe, iOwe, net };
 }
 
+// -------- EXPENSES SEARCH / PAGINATION STATE --------
+let expensePage = 0;
+let expensePageSize = 10;
+let expenseSearch = "";
+function setExpensePage(page) { expensePage = page; render(); }
+function setExpensePageSize(size) { expensePageSize = parseInt(size); expensePage = 0; render(); }
+function setExpenseSearch(query) {
+  expenseSearch = query;
+  expensePage = 0;
+  render();
+  const el = document.getElementById("expense-search");
+  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+}
+
 // -------- ITINERARY TAB --------
 let itinMobileDay = 0;
 
@@ -4123,7 +4137,24 @@ function renderExpenses(t, printMode) {
     if (!me) return true;
     return (e.paidBy || []).includes(me) || expenseParticipants(e, travelers).includes(me);
   });
-  const total = visibleWithIdx.reduce((s, { e }) => s + (parseFloat(e.cost) || 0), 0);
+
+  // Apply search filter across name, category, paidBy, note
+  const q = expenseSearch.toLowerCase().trim();
+  const searchFiltered = q ? visibleWithIdx.filter(({ e }) =>
+    (e.name||"").toLowerCase().includes(q)
+    || (e.category||"").toLowerCase().includes(q)
+    || (e.note||"").toLowerCase().includes(q)
+    || (e.paidBy||[]).some(p => p.toLowerCase().includes(q))
+  ) : visibleWithIdx;
+
+  // Pagination (skip in print mode)
+  const totalPages = (!printMode && expensePageSize > 0) ? Math.max(1, Math.ceil(searchFiltered.length / expensePageSize)) : 1;
+  const safePage = Math.min(expensePage, totalPages - 1);
+  const pageStart = printMode ? 0 : safePage * expensePageSize;
+  const pageEnd = printMode ? searchFiltered.length : pageStart + expensePageSize;
+  const pagedItems = searchFiltered.slice(pageStart, pageEnd);
+
+  const total = searchFiltered.reduce((s, { e }) => s + (parseFloat(e.cost) || 0), 0);
 
   // Aggregate owed/paid/settled using computeSplit logic
   const owedBy = {}; const paidBy = {}; const settledAmt = {}; const unsettledAmt = {}; const unsettledToMe = {};
@@ -4152,7 +4183,7 @@ function renderExpenses(t, printMode) {
     });
   });
 
-  const rows = visibleWithIdx.map(({ e, i }) => {
+  const rows = pagedItems.map(({ e, i }) => {
     const allocated = splitTotalAllocated(e, travelers);
     const cost = parseFloat(e.cost) || 0;
     const balanced = Math.abs(allocated - cost) < 0.01;
@@ -4200,6 +4231,17 @@ function renderExpenses(t, printMode) {
     </tr>
   `;}).join("");
 
+  // Build status line
+  const statusParts = [];
+  if (q) statusParts.push(`matching "<strong>${escapeHtml(expenseSearch)}</strong>"`);
+  if (me) statusParts.push(`involving <strong>${escapeHtml(me)}</strong>`);
+  const showingCount = printMode ? searchFiltered.length : Math.min(pagedItems.length, searchFiltered.length);
+  const statusLine = expenses.length > 0 && (q || me) ? `
+    <div class="panel-sub" style="margin-bottom:8px;">
+      Showing ${showingCount} of ${searchFiltered.length} expense${searchFiltered.length !== 1 ? 's' : ''}${statusParts.length ? ' ' + statusParts.join(' and ') : ''}.
+      ${me ? `<span style="color:var(--ink-soft);font-size:12px;">(Tap your name again in Overview to clear traveler filter.)</span>` : ''}
+    </div>` : '';
+
   return `
     <div class="panel">
       <div class="panel-head">
@@ -4210,11 +4252,20 @@ function renderExpenses(t, printMode) {
         </div>
       </div>
 
-      ${me && expenses.length > 0 ? `
-        <div class="panel-sub" style="margin-bottom:8px;">
-          Showing ${visibleWithIdx.length} of ${expenses.length} expense${expenses.length !== 1 ? 's' : ''} involving <strong>${escapeHtml(me)}</strong>.
-          <span style="color:var(--ink-soft);font-size:12px;">(Select a different traveler or tap your name again in Overview to clear filter.)</span>
-        </div>` : ''}
+      ${expenses.length > 0 ? `
+        <div class="no-print" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div style="position:relative;flex:1;">
+            <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--ink-soft);pointer-events:none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="expense-search" type="text" placeholder="Search by name, category, payer…"
+              value="${escapeHtml(expenseSearch)}"
+              oninput="setExpenseSearch(this.value)"
+              style="width:100%;padding:7px 10px 7px 30px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:var(--surface-2);box-sizing:border-box;" />
+            ${expenseSearch ? `<button onclick="setExpenseSearch('')" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:16px;line-height:1;padding:0;" title="Clear">×</button>` : ''}
+          </div>
+        </div>
+      ` : ''}
+
+      ${statusLine}
       ${expenses.length === 0 ? `
         <div class="empty-mini">
           <h4>No expenses yet 💸</h4>
@@ -4229,7 +4280,7 @@ function renderExpenses(t, printMode) {
               <th class="col-date">Date</th><th class="col-paid">Paid by</th><th class="col-note">Note</th><th class="col-per">Per Person</th>
               <th class="no-print"></th>
             </tr></thead>
-            <tbody>${rows || `<tr><td colspan="8" style="padding:20px 12px;color:var(--ink-soft);text-align:center;">No expenses involve <strong>${escapeHtml(me)}</strong> yet.</td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="8" style="padding:20px 12px;color:var(--ink-soft);text-align:center;">${q ? `No expenses match "<strong>${escapeHtml(expenseSearch)}</strong>".` : `No expenses involve <strong>${escapeHtml(me)}</strong> yet.`}</td></tr>`}</tbody>
             <tfoot>
               <tr>
                 <td colspan="2">Total</td>
@@ -4240,6 +4291,26 @@ function renderExpenses(t, printMode) {
             </tfoot>
           </table>
         </div>
+
+        ${!printMode && searchFiltered.length > 0 ? `
+        <div class="no-print" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:13px;">
+          <div style="display:flex;align-items:center;gap:6px;color:var(--ink-soft);">
+            Rows per page:
+            <select onchange="setExpensePageSize(this.value)" style="padding:3px 6px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:13px;background:var(--surface-2);">
+              ${[5,10,15,20].map(n => `<option value="${n}" ${expensePageSize===n?'selected':''}>${n}</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="color:var(--ink-soft);margin-right:4px;">Page ${safePage+1} of ${totalPages}</span>
+            <button class="btn sm" onclick="setExpensePage(${safePage-1})" ${safePage===0?'disabled':''} style="min-width:32px;">‹</button>
+            ${Array.from({length:totalPages},(_,k)=>k).filter(k=>Math.abs(k-safePage)<=2||k===0||k===totalPages-1).reduce((acc,k,idx,arr)=>{
+              if(idx>0&&k-arr[idx-1]>1) acc.push('<span style="color:var(--ink-soft);padding:0 2px;">…</span>');
+              acc.push(`<button class="btn sm ${k===safePage?'primary':''}" onclick="setExpensePage(${k})" style="min-width:32px;">${k+1}</button>`);
+              return acc;
+            },[]).join('')}
+            <button class="btn sm" onclick="setExpensePage(${safePage+1})" ${safePage===totalPages-1?'disabled':''} style="min-width:32px;">›</button>
+          </div>
+        </div>` : ''}
 
         ${travelers.length >= 1 ? `
           <h4 style="margin:18px 0 0; margin-bottom: 18px;">Per-person breakdown</h4>
