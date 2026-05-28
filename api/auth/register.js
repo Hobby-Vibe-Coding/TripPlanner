@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless";
+import { getDb } from "../_db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Password must be at least 8 characters." });
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getDb();
   const normalizedUsername = username.toLowerCase();
 
   const existing = await sql`SELECT id FROM users WHERE username = ${normalizedUsername}`;

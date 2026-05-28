@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless";
+import { getDb } from "../_db.js";
 
 export const config = {
   api: { bodyParser: { sizeLimit: "8mb" } },
@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   const { token } = req.query;
   if (!token) return res.status(400).json({ error: "Token required" });
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getDb();
   const tokenRow = await sql`SELECT user_id, trip_id, mode FROM share_tokens WHERE token = ${token}`;
   if (!tokenRow.length) return res.status(404).json({ error: "Share link not found or expired" });
 

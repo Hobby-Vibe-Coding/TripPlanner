@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless";
+import { getDb } from "../_db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Username and password required." });
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getDb();
   const rows = await sql`SELECT id, username, password_hash FROM users WHERE username = ${username.toLowerCase()}`;
   if (!rows.length) {
     return res.status(401).json({ error: "Invalid username or password." });

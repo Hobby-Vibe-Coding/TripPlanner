@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless";
+import { getDb } from "./_db.js";
 import jwt from "jsonwebtoken";
 
 export const config = {
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   const user = verifyToken(req);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getDb();
 
   if (req.method === "GET") {
     const rows = await sql`SELECT data FROM app_data WHERE user_id = ${user.id}`;
