@@ -3107,7 +3107,13 @@ function renderOverview(t) {
             const groups = t.groups || [];
             const travelers = t.travelers || [];
             if (!travelers.length) return `<span class="muted text-sm">${shareReadOnly ? "No travelers listed." : "Add travelers below ↓"}</span>`;
-            if (shareReadOnly) return travelers.map(p => `<span class="tag">${escapeHtml(p)}</span>`).join(" ");
+            if (shareReadOnly) {
+              return travelers.map(p => {
+                const isMe = getMyTraveler(t.id) === p;
+                return `<span class="tag ${isMe?'is-me':''}" onclick="setMyTraveler('${escapeAttr(p)}')" style="cursor:pointer;"
+                  title="${isMe?'This is you! Click to unset.':'Click to set as you'}">${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}</span>`;
+              }).join(" ");
+            }
             // Group-aware display: show groups first, then ungrouped
             const grouped = new Set(groups.flatMap(g => g.members));
             const ungrouped = travelers.filter(p => !grouped.has(p));
@@ -3137,7 +3143,9 @@ function renderOverview(t) {
             html += `</div>`;
             return html;
           })()}
-          ${shareReadOnly ? "" : `
+          ${shareReadOnly ? `
+          <div style="margin-top:6px;"><span class="muted text-sm" style="text-transform:none;letter-spacing:0;font-weight:500;">Tap your name to track your share</span></div>
+          ` : `
           <div style="margin-top:6px;"><span class="muted text-sm" style="text-transform:none;letter-spacing:0;font-weight:500;">Tap your name to track your share</span></div>
           <div style="margin-top:10px;">
             <input id="trav-input" placeholder="Add traveler name + Enter"
@@ -3146,7 +3154,7 @@ function renderOverview(t) {
           </div>`}
         </div>
 
-        ${shareReadOnly ? "" : (() => {
+        ${(() => {
           const myTraveler = getMyTraveler(t.id);
           const myData = myTraveler ? computeMyData(t) : null;
           if (!myData) return `
@@ -3421,11 +3429,44 @@ function getMyTraveler(tripId) {
 function setMyTraveler(name) {
   const t = currentTrip(); if (!t) return;
   const current = getMyTraveler(t.id);
+  if (isShareMode() && current && current !== name) {
+    showModal({
+      title: "Switch traveler?",
+      size: "sm",
+      body: `<p>You're currently viewing as <strong>${escapeHtml(current)}</strong>. Switch to <strong>${escapeHtml(name)}</strong>?</p>`,
+      actions: [
+        { label: "Switch", primary: true, onClick: () => { localStorage.setItem("myTraveler_" + t.id, name); closeModal(); render(); } },
+        { label: "Cancel", onClick: closeModal }
+      ]
+    });
+    return;
+  }
   if (current === name) {
     localStorage.removeItem("myTraveler_" + t.id);
   } else {
     localStorage.setItem("myTraveler_" + t.id, name);
   }
+  render();
+}
+function showTravelerSelectModal(trip) {
+  const travelers = trip.travelers || [];
+  const chipsHtml = travelers.map(p => `
+    <button class="btn" style="margin:4px 4px 4px 0;"
+      onclick="selectTravelerFromModal('${escapeAttr(p)}', '${escapeAttr(trip.id)}')">
+      ${escapeHtml(p)}
+    </button>`).join("");
+  showModal({
+    title: "Who are you?",
+    size: "sm",
+    body: `<p style="margin-bottom:12px;color:var(--ink-soft);">Select your name to track your personal expense summary.</p>
+      <div style="display:flex;flex-wrap:wrap;">${chipsHtml}</div>`,
+    actions: [{ label: "Skip", onClick: closeModal }],
+    dismissOnOverlay: false
+  });
+}
+function selectTravelerFromModal(name, tripId) {
+  localStorage.setItem("myTraveler_" + tripId, name);
+  closeModal();
   render();
 }
 function computeMyData(t) {
@@ -5594,10 +5635,10 @@ function selectNtEmoji(btn) {
 }
 
 // -------- MODAL --------
-function showModal({ title, body, actions, size, onOpen }) {
+function showModal({ title, body, actions, size, onOpen, dismissOnOverlay = true }) {
   const root = document.getElementById("modal-root");
   root.innerHTML = `
-    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+    <div class="modal-bg" ${dismissOnOverlay ? 'onclick="if(event.target===this) closeModal()"' : ''}>
       <div class="modal" style="${size==='sm'?'max-width:380px;':size==='lg'?'max-width:720px;':''}">
         <div class="modal-head">
           <h3>${title}</h3>
@@ -6262,6 +6303,9 @@ async function loadSharedTrip(token) {
     const firstTab = window._shareTabs ? window._shareTabs[0] : "overview";
     route = { view: "trip", tripId: trip.id, tab: firstTab || "overview" };
     render();
+    if (!getMyTraveler(trip.id) && (trip.travelers || []).length > 0) {
+      showTravelerSelectModal(trip);
+    }
   } catch {
     document.getElementById("app-root").innerHTML = `
       <div style="text-align:center;padding:80px 20px;">
