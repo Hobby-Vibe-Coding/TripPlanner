@@ -2597,6 +2597,8 @@ function saveState() {
 let state = DEFAULT_STATE();
 let route = { view: "home", tripId: null, tab: "overview" };
 let pastYearFilter = "all";
+let simplifyDebts = localStorage.getItem('tp_simplify_debts') !== 'false';
+function setSimplifyDebts(v) { simplifyDebts = v; localStorage.setItem('tp_simplify_debts', v); render(); }
 let travEditMode = false;
 
 // -------- DRIVE PHOTO CACHE --------
@@ -3199,29 +3201,50 @@ function renderOverview(t) {
                 <div class="value" style="color:#2e7d32">✓ All</div>
               </div>` : ""}
             </div>
-            ${myData.owesMe.length ? `
-              <div class="my-debts">
-                <div class="my-debts-title">People who owe me</div>
-                ${myData.owesMe.map(d => `
-                  <div class="my-debt-row">
-                    <span class="name">${escapeHtml(d.name)}</span>
-                    <span class="amt owed-to-me">+${fmtCurrency(d.amount)}</span>
-                  </div>
-                `).join("")}
-              </div>
-            ` : ''}
-            ${myData.iOwe.length ? `
-              <div class="my-debts" style="margin-top:${myData.owesMe.length ? '10px' : '0'};">
-                <div class="my-debts-title">I owe</div>
-                ${myData.iOwe.map(d => `
-                  <div class="my-debt-row">
-                    <span class="name">${escapeHtml(d.name)}</span>
-                    <span class="amt i-owe">-${fmtCurrency(d.amount)}</span>
-                  </div>
-                `).join("")}
-              </div>
-            ` : ''}
-            ${!myData.owesMe.length && !myData.iOwe.length && myData.myOwed > 0 ? `
+            ${(() => {
+              const detailed = buildDetailedDebts(t);
+              const hasOwesMe = simplifyDebts ? myData.owesMe.length > 0 : detailed.owesMe.length > 0;
+              const hasIOwe   = simplifyDebts ? myData.iOwe.length > 0   : detailed.iOwe.length > 0;
+              const settleBtn = (fn) => isEditing() ? `<button class="btn sm" onclick="${fn}" style="margin:0 6px;font-size:11px;padding:2px 8px;white-space:nowrap;">✓ Settle</button>` : '';
+              const toggleHtml = (hasOwesMe || hasIOwe) ? `
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;">
+                  <span style="color:var(--ink-soft);">View:</span>
+                  <button class="btn sm ${simplifyDebts ? 'primary' : ''}" onclick="setSimplifyDebts(true)">Simplified</button>
+                  <button class="btn sm ${!simplifyDebts ? 'primary' : ''}" onclick="setSimplifyDebts(false)">Per expense</button>
+                </div>` : '';
+              const owesMeRows = simplifyDebts
+                ? myData.owesMe.map(d => `
+                    <div class="my-debt-row">
+                      <span class="name">${escapeHtml(d.name)}</span>
+                      ${settleBtn("settleWithPerson('" + escapeAttr(d.name) + "')")}
+                      <span class="amt owed-to-me">+${fmtCurrency(d.amount)}</span>
+                    </div>`).join("")
+                : detailed.owesMe.map(d => `
+                    <div class="my-debt-row">
+                      <span class="name" style="flex-shrink:0;">${escapeHtml(d.name)}</span>
+                      <span style="color:var(--ink-soft);font-size:11px;flex:1;margin:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.expenseName)}">${escapeHtml(d.expenseName)}</span>
+                      ${settleBtn("settleOneDebt(" + d.expenseIdx + ",'" + escapeAttr(d.name) + "')")}
+                      <span class="amt owed-to-me" style="flex-shrink:0;">+${fmtCurrency(d.amount)}</span>
+                    </div>`).join("");
+              const iOweRows = simplifyDebts
+                ? myData.iOwe.map(d => `
+                    <div class="my-debt-row">
+                      <span class="name">${escapeHtml(d.name)}</span>
+                      ${settleBtn("settleWithPerson('" + escapeAttr(d.name) + "')")}
+                      <span class="amt i-owe">-${fmtCurrency(d.amount)}</span>
+                    </div>`).join("")
+                : detailed.iOwe.map(d => `
+                    <div class="my-debt-row">
+                      <span class="name" style="flex-shrink:0;">${escapeHtml(d.name)}</span>
+                      <span style="color:var(--ink-soft);font-size:11px;flex:1;margin:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.expenseName)}">${escapeHtml(d.expenseName)}</span>
+                      ${settleBtn("settleOneDebt(" + d.expenseIdx + ",'" + escapeAttr(me) + "')")}
+                      <span class="amt i-owe" style="flex-shrink:0;">-${fmtCurrency(d.amount)}</span>
+                    </div>`).join("");
+              return toggleHtml
+                + (hasOwesMe ? `<div class="my-debts"><div class="my-debts-title">People who owe me</div>${owesMeRows}</div>` : '')
+                + (hasIOwe ? `<div class="my-debts" style="margin-top:${hasOwesMe ? '10px' : '0'};"><div class="my-debts-title">I owe</div>${iOweRows}</div>` : '');
+            })()}
+            ${!buildDetailedDebts(t).owesMe.length && !buildDetailedDebts(t).iOwe.length && myData.myOwed > 0 ? `
               <div style="text-align:center;color:var(--ink-soft);font-size:13px;padding:8px;">All settled up — no outstanding debts!</div>
             ` : ''}
             ${myData.myOwed === 0 ? `
@@ -4780,6 +4803,74 @@ function dialogToggleSettle(i, name) {
   if (idx >= 0) e.settledBy.splice(idx, 1); else e.settledBy.push(name);
   saveState();
   renderPayerDialog(i);
+}
+
+function settleWithPerson(otherName) {
+  if (!guardEdit()) return;
+  const t = currentTrip();
+  const me = getMyTraveler(t.id);
+  if (!me) return;
+  const travelers = t.travelers || [];
+  showModal({
+    title: `Settle up with ${escapeHtml(otherName)}?`,
+    size: 'sm',
+    body: `<p>Mark all outstanding expenses between <strong>${escapeHtml(me)}</strong> and <strong>${escapeHtml(otherName)}</strong> as settled — in both directions.</p>`,
+    actions: [
+      { label: 'Settle all', primary: true, onClick: () => {
+        let changed = false;
+        (t.expenses || []).forEach(e => {
+          const payers = e.paidBy && e.paidBy.length ? e.paidBy : [];
+          const parts = expenseParticipants(e, travelers);
+          if (payers.includes(otherName) && parts.includes(me) && !payers.includes(me) && !(e.settledBy||[]).includes(me)) {
+            e.settledBy = [...(e.settledBy||[]), me]; changed = true;
+          }
+          if (payers.includes(me) && parts.includes(otherName) && !payers.includes(otherName) && !(e.settledBy||[]).includes(otherName)) {
+            e.settledBy = [...(e.settledBy||[]), otherName]; changed = true;
+          }
+        });
+        if (changed) saveState();
+        closeModal(); render();
+      }},
+      { label: 'Cancel', onClick: closeModal }
+    ]
+  });
+}
+function settleOneDebt(expenseIdx, nameToSettle) {
+  if (!guardEdit()) return;
+  const t = currentTrip();
+  const e = t.expenses[expenseIdx];
+  if (!e) return;
+  e.settledBy = e.settledBy || [];
+  if (!e.settledBy.includes(nameToSettle)) {
+    e.settledBy.push(nameToSettle);
+    saveState(); render();
+  }
+}
+function buildDetailedDebts(t) {
+  const me = getMyTraveler(t.id);
+  if (!me) return { owesMe: [], iOwe: [] };
+  const travelers = t.travelers || [];
+  const owesMe = [], iOwe = [];
+  (t.expenses || []).forEach((e, i) => {
+    const cost = parseFloat(e.cost) || 0;
+    if (!cost) return;
+    const payers = e.paidBy && e.paidBy.length ? e.paidBy : [];
+    const parts = expenseParticipants(e, travelers);
+    const split = computeSplit(e, travelers);
+    const settled = e.settledBy || [];
+    if (payers.includes(me)) {
+      parts.forEach(p => {
+        if (p === me || payers.includes(p) || settled.includes(p)) return;
+        owesMe.push({ name: p, amount: split[p] || 0, expenseIdx: i, expenseName: e.name || 'Untitled' });
+      });
+    }
+    if (!payers.includes(me) && parts.includes(me) && !settled.includes(me)) {
+      payers.forEach(p => {
+        iOwe.push({ name: p, amount: (split[me] || 0) / payers.length, expenseIdx: i, expenseName: e.name || 'Untitled' });
+      });
+    }
+  });
+  return { owesMe, iOwe };
 }
 
 // -------- PERSON EXPENSE DETAIL --------
