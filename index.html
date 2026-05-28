@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="data:application/manifest+json;base64,eyAibmFtZSI6ICJUcmlwIFBsYW5uZXIiLCAic2hvcnRfbmFtZSI6ICJUcmlwIFBsYW5uZXIiLCAiZGVzY3JpcHRpb24iOiAiUGxhbiB0cmlwcyB3aXRoIGl0aW5lcmFyaWVzLCBleHBlbnNlcywgcGFja2luZyBsaXN0cywgYW5kIHJlc2VydmF0aW9ucy4iLCAic3RhcnRfdXJsIjogIi8iLCAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwgImJhY2tncm91bmRfY29sb3IiOiAiI2ZmZmZmZiIsICJ0aGVtZV9jb2xvciI6ICIjMDA5ZWIwIiwgIm9yaWVudGF0aW9uIjogImFueSIsICJpY29ucyI6IFsgeyAic3JjIjogIi9mYXZpY29uLnN2ZyIsICJzaXplcyI6ICJhbnkiLCAidHlwZSI6ICJpbWFnZS9zdmcreG1sIiwgInB1cnBvc2UiOiAiYW55IG1hc2thYmxlIiB9IF0gfQ==">
 <meta name="theme-color" content="#009eb0">
 <style>
 /* ===========================================================
@@ -3178,11 +3178,6 @@ function renderOverview(t) {
                   ${myData.net > 0.01 ? 'Owed ' + fmtCurrency(myData.net) : myData.net < -0.01 ? 'Owe ' + fmtCurrency(-myData.net) : 'Even'}
                 </div>
               </div>
-              ${myData.myUnsettled > 0.01 ? `
-              <div class="my-stat">
-                <div class="label">I still owe</div>
-                <div class="value" style="color:#c0392b">${fmtCurrency(myData.myUnsettled)}</div>
-              </div>` : ""}
               ${myData.owesMe.length > 0 ? `
               <div class="my-stat">
                 <div class="label">Owed to me</div>
