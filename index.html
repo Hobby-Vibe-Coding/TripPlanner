@@ -3446,13 +3446,13 @@ function computeMyData(t) {
   expenses.forEach(e => {
     const cost = parseFloat(e.cost) || 0;
     const participants = expenseParticipants(e, travelers);
-    if (!participants.includes(me)) return;
-    const split = computeSplit(e, travelers);
-    const myShare = split[me] || 0;
-    myOwed += myShare;
-
     const payers = e.paidBy && e.paidBy.length ? e.paidBy : [];
     const isPayer = payers.includes(me);
+    if (!participants.includes(me) && !isPayer) return;
+    const split = computeSplit(e, travelers);
+    const myShare = participants.includes(me) ? (split[me] || 0) : 0;
+    myOwed += myShare;
+
     if (isPayer) myPaid += cost / payers.length;
 
     const settled = e.settledBy || [];
@@ -4403,8 +4403,9 @@ function renderSplitEditor(i) {
           ${groups.map(g => {
             const members = g.members.filter(p => allTravelers.includes(p));
             const allOn = members.every(p => (e.splitAmong || allTravelers).includes(p));
+            const groupIdx = (t.groups || []).indexOf(g);
             return `<button class="group-chip-btn ${allOn?'selected':''}"
-              onclick="toggleGroupParticipants(${i}, ${JSON.stringify(members)})">
+              onclick="toggleGroupParticipants(${i}, ${groupIdx})">
               ${escapeHtml(g.name)} <span style="opacity:0.7;font-weight:400;">${members.length}</span>
             </button>`;
           }).join("")}
@@ -4500,10 +4501,14 @@ function setAllSplitParticipants(i, clear) {
   renderSplitEditor(i);
 }
 
-function toggleGroupParticipants(i, members) {
+function toggleGroupParticipants(i, groupIdx) {
   const t = currentTrip();
   const e = t.expenses[i];
-  e.splitAmong = e.splitAmong || (t.travelers || []).slice();
+  const travelers = t.travelers || [];
+  const group = (t.groups || [])[groupIdx];
+  if (!group) return;
+  const members = group.members.filter(p => travelers.includes(p));
+  e.splitAmong = e.splitAmong || travelers.slice();
   const allOn = members.every(p => e.splitAmong.includes(p));
   if (allOn) {
     e.splitAmong = e.splitAmong.filter(p => !members.includes(p));
@@ -4680,25 +4685,26 @@ function openPersonDetail(name) {
   // Find all expenses this person is involved in
   const personExpenses = [];
   let totalOwed = 0, totalPaid = 0, totalSettled = 0, totalUnsettled = 0;
+  let outstandingFromOthers = 0;
 
   expenses.forEach((e, i) => {
     const cost = parseFloat(e.cost) || 0;
     const participants = expenseParticipants(e, travelers);
-    if (!participants.includes(name)) return;
+    const payers = e.paidBy && e.paidBy.length ? e.paidBy : (travelers[0] ? [travelers[0]] : []);
+    const isPayer = payers.includes(name);
+    if (!participants.includes(name) && !isPayer) return;
 
     const split = computeSplit(e, travelers);
-    const share = split[name] || 0;
+    const share = participants.includes(name) ? (split[name] || 0) : 0;
     totalOwed += share;
 
-    const payers = e.paidBy && e.paidBy.length ? e.paidBy : (travelers[0] ? [travelers[0]] : []);
     let paidAmount = 0;
-    if (payers.includes(name)) {
+    if (isPayer) {
       paidAmount = cost / payers.length;
     }
     totalPaid += paidAmount;
 
     // Settlement status
-    const isPayer = payers.includes(name);
     const isSettled = (e.settledBy || []).includes(name);
     let status, settledCount = 0, debtorCount = 0;
     if (isPayer) {
@@ -4710,6 +4716,9 @@ function openPersonDetail(name) {
              : settledCount === 0 ? "payer-none"
              : "payer-partial";
       totalSettled += share;
+      // Track what debtors still haven't paid back
+      const unsettledDebtors = debtors.filter(p => !(e.settledBy || []).includes(p));
+      unsettledDebtors.forEach(p => { outstandingFromOthers += split[p] || 0; });
     } else if (isSettled) { status = "settled"; totalSettled += share; }
     else { status = "unsettled"; totalUnsettled += share; }
 
@@ -4727,9 +4736,9 @@ function openPersonDetail(name) {
     });
   });
 
-  const net = totalPaid - totalOwed;
-  const netClass = net > 0.01 ? "positive" : net < -0.01 ? "negative" : "even";
-  const netLabel = net > 0.01 ? "Is owed " + fmtCurrency(net) : net < -0.01 ? "Owes " + fmtCurrency(-net) : "Even";
+  const netOutstanding = outstandingFromOthers - totalUnsettled;
+  const netClass = netOutstanding > 0.01 ? "positive" : netOutstanding < -0.01 ? "negative" : "even";
+  const netLabel = netOutstanding > 0.01 ? "Is owed " + fmtCurrency(netOutstanding) : netOutstanding < -0.01 ? "Owes " + fmtCurrency(-netOutstanding) : "Even";
 
   const statusBadge = (pe) => {
     const s = pe.status;
@@ -4816,7 +4825,7 @@ function addExpense() {
   if (!guardEdit()) return;
   const t = currentTrip();
   t.expenses = t.expenses || [];
-  t.expenses.push({ id: uid(), name: "", category: "Misc", cost: null, date: "", paidBy: [], settledBy: [], splitAmong: [], note: "" });
+  t.expenses.push({ id: uid(), name: "", category: "Misc", cost: null, date: "", paidBy: [], settledBy: [], note: "" });
   saveState(); render();
 }
 function updateExpense(i, key, value) {
