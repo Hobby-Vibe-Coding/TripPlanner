@@ -3178,11 +3178,6 @@ function renderOverview(t) {
                   ${myData.net > 0.01 ? 'Owed ' + fmtCurrency(myData.net) : myData.net < -0.01 ? 'Owe ' + fmtCurrency(-myData.net) : 'Even'}
                 </div>
               </div>
-              ${myData.myUnsettled > 0.01 ? `
-              <div class="my-stat">
-                <div class="label">I still owe</div>
-                <div class="value" style="color:#c0392b">${fmtCurrency(myData.myUnsettled)}</div>
-              </div>` : ""}
               ${myData.owesMe.length > 0 ? `
               <div class="my-stat">
                 <div class="label">Owed to me</div>
