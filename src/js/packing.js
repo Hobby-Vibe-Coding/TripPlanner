@@ -2,6 +2,8 @@ import { state, route, currentUser, pastYearFilter, simplifyDebts, travEditMode,
          setTravEditMode, setCurrentUser, setState } from './state.js';
 // Bridges – resolved at call-time via window (no circular imports needed)
 const render        = ()    => window.render();
+const tripPanelRender = () => window.tripPanelRender();
+const updateTripHeaderStats = () => window.updateTripHeaderStats();
 const saveState     = ()    => window.saveState();
 const showModal     = o     => window.showModal(o);
 const closeModal    = ()    => window.closeModal();
@@ -59,7 +61,7 @@ function renderPacking(t) {
         ${t.packing.map((c, ci) => {
           const total = c.items.length, done = c.items.filter(i=>i.packed).length;
           return `
-            <div class="pack-cat">
+            <div class="pack-cat" data-ci="${ci}">
               <div class="pack-cat-head">
                 <div class="pack-cat-title">
                   <input value="${escapeHtml(c.name)}" onchange="updatePackCat(${ci}, this.value)" />
@@ -72,7 +74,7 @@ function renderPacking(t) {
               <div class="pack-bar"><div class="pack-bar-fill" style="width:${total ? (done/total*100) : 0}%"></div></div>
               <div class="pack-items">
                 ${c.items.map((it, ii) => `
-                  <div class="pack-item ${it.packed?"checked":""}">
+                  <div class="pack-item ${it.packed?"checked":""}" data-ii="${ii}">
                     <input type="checkbox" ${it.packed?"checked":""} onchange="togglePack(${ci},${ii})" />
                     <input type="text" value="${escapeHtml(it.name)}" onchange="updatePackItem(${ci},${ii},this.value)" />
                     <button class="x" onclick="deletePackItem(${ci},${ii})" title="Remove">
@@ -95,7 +97,7 @@ function loadPackingTemplate() {
   if (!guardEdit()) return;
   const t = currentTrip();
   t.packing = PACKING_TEMPLATE.map(c => ({ id: uid(), name: c.name, items: c.items.map(i => ({ id: uid(), name: i, packed: false })) }));
-  saveState(); render();
+  saveState(); tripPanelRender();
 }
 
 // -------- DESTINATION AUTOCOMPLETE --------
@@ -298,29 +300,50 @@ function addPackCategory() {
   const t = currentTrip();
   t.packing = t.packing || [];
   t.packing.push({ id: uid(), name: "New category", items: [] });
-  saveState(); render();
+  saveState(); tripPanelRender();
 }
 function updatePackCat(ci, name) { if (!guardEdit()) return; currentTrip().packing[ci].name = name; saveState(); }
 function deletePackCat(ci) {
   if (!guardEdit()) return;
   if (!confirm("Delete this category and all its items?")) return;
-  currentTrip().packing.splice(ci, 1); saveState(); render();
+  currentTrip().packing.splice(ci, 1); saveState(); tripPanelRender();
 }
 function addPackItem(ci, name) {
   if (!guardEdit()) return;
   name = name.trim(); if (!name) return;
   currentTrip().packing[ci].items.push({ id: uid(), name, packed: false });
-  saveState(); render();
+  saveState(); tripPanelRender();
 }
 function updatePackItem(ci, ii, name) { if (!guardEdit()) return; currentTrip().packing[ci].items[ii].name = name; saveState(); }
 function togglePack(ci, ii) {
   if (!guardEdit()) return;
-  const it = currentTrip().packing[ci].items[ii];
-  it.packed = !it.packed; saveState(); render();
+  const t = currentTrip();
+  const it = t.packing[ci].items[ii];
+  it.packed = !it.packed;
+  saveState();
+  const cat = document.querySelector(`.pack-cat[data-ci="${ci}"]`);
+  if (cat && route.tab === "packing") {
+    const row = cat.querySelector(`.pack-item[data-ii="${ii}"]`);
+    if (row) {
+      row.classList.toggle("checked", it.packed);
+      const cb = row.querySelector('input[type="checkbox"]');
+      if (cb) cb.checked = it.packed;
+    }
+    const items = t.packing[ci].items;
+    const total = items.length;
+    const done = items.filter(i => i.packed).length;
+    const prog = cat?.querySelector(".pack-cat-progress");
+    if (prog) prog.textContent = `${done}/${total}`;
+    const fill = cat?.querySelector(".pack-bar-fill");
+    if (fill) fill.style.width = `${total ? (done / total * 100) : 0}%`;
+    updateTripHeaderStats(t);
+    return;
+  }
+  tripPanelRender();
 }
 function deletePackItem(ci, ii) {
   if (!guardEdit()) return;
-  currentTrip().packing[ci].items.splice(ii, 1); saveState(); render();
+  currentTrip().packing[ci].items.splice(ii, 1); saveState(); tripPanelRender();
 }
 
 Object.assign(window, {

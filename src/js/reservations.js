@@ -24,14 +24,19 @@ const showLoginModal = t    => window.showLoginModal(t);
 let resPage = 0;
 let resPageSize = 10;
 let resSearch = "";
-function setResPage(page) { resPage = page; render(); }
-function setResPageSize(size) { resPageSize = parseInt(size); resPage = 0; render(); }
+let resSearchTimer = null;
+const tripPanelRender = () => window.tripPanelRender();
+function setResPage(page) { resPage = page; tripPanelRender(); }
+function setResPageSize(size) { resPageSize = parseInt(size); resPage = 0; tripPanelRender(); }
 function setResSearch(query) {
   resSearch = query;
   resPage = 0;
-  render();
-  const el = document.getElementById("reservation-search");
-  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  clearTimeout(resSearchTimer);
+  resSearchTimer = setTimeout(() => {
+    if (!window.renderReservationsPanel()) window.render();
+    const el = document.getElementById("reservation-search");
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }, 200);
 }
 
 function resOpenHref(link) {
@@ -152,13 +157,13 @@ function renderReservations(t, printMode) {
           </div>
           <div style="display:flex;align-items:center;gap:4px;">
             <span style="color:var(--ink-soft);margin-right:4px;">Page ${safePage+1} of ${totalPages}</span>
-            <button class="btn sm" onclick="setResPage(${safePage-1})" ${safePage===0?'disabled':''} style="min-width:32px;">‹</button>
+            <button class="btn sm" onclick="setResPage(${safePage-1})" ${safePage===0?'disabled':''} style="min-width:32px;padding:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
             ${Array.from({length:totalPages},(_,k)=>k).filter(k=>Math.abs(k-safePage)<=2||k===0||k===totalPages-1).reduce((acc,k,idx,arr)=>{
               if(idx>0&&k-arr[idx-1]>1) acc.push('<span style="color:var(--ink-soft);padding:0 2px;">…</span>');
               acc.push(`<button class="btn sm ${k===safePage?'primary':''}" onclick="setResPage(${k})" style="min-width:32px;">${k+1}</button>`);
               return acc;
             },[]).join('')}
-            <button class="btn sm" onclick="setResPage(${safePage+1})" ${safePage===totalPages-1?'disabled':''} style="min-width:32px;">›</button>
+            <button class="btn sm" onclick="setResPage(${safePage+1})" ${safePage===totalPages-1?'disabled':''} style="min-width:32px;padding:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
           </div>
         </div>` : ''}
       `}
@@ -170,15 +175,16 @@ function addRes() {
   const t = currentTrip();
   t.reservations = t.reservations || [];
   t.reservations.push({ id: uid(), name: "", status: "pending", dueDate: "", confNum: "", link: "", note: "" });
-  saveState(); render();
+  saveState(); tripPanelRender();
 }
 function updateRes(i, key, value) {
   if (!guardEdit()) return;
-  currentTrip().reservations[i][key] = value; saveState(); if (key==="status" || key==="link") render();
+  currentTrip().reservations[i][key] = value; saveState();
+  if (key === "status" || key === "link") tripPanelRender();
 }
 function deleteRes(i) {
   if (!guardEdit()) return;
-  currentTrip().reservations.splice(i, 1); saveState(); render();
+  currentTrip().reservations.splice(i, 1); saveState(); tripPanelRender();
 }
 
 Object.assign(window, {

@@ -110,7 +110,7 @@
   color: var(--ink-soft); font-weight: 600; font-size: 14px;
   white-space: nowrap;
   display: flex; align-items: center; gap: 7px;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .tab:hover { color: var(--ink); background: var(--surface-2); }
 .tab.active {
@@ -414,7 +414,7 @@ table.t tfoot td {
   background: var(--surface-solid); border: 1px solid var(--line);
   border-radius: 5px; padding: 2px 5px; font-size: 10px;
   cursor: pointer; color: var(--ink-soft); line-height: 1.4;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .slot-res-link-btn.linked { display: inline-flex; color: var(--primary); border-color: var(--primary); }
 .itin-cell.slot.filled:hover .slot-res-link-btn { display: inline-flex; }
@@ -674,7 +674,7 @@ table.t tfoot td {
   cursor: pointer; z-index: 40;
   display: grid; place-items: center;
   font-size: 22px;
-  transition: all 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 .fab:hover { transform: scale(1.06); background: var(--primary-dark); }
 .fab svg { width: 22px; height: 22px; }
@@ -707,7 +707,7 @@ table.t tfoot td {
   padding: 14px 0; border-radius: 11px;
   background: var(--surface-2); border: 1px solid var(--line);
   font-size: 17px; font-weight: 600; color: var(--ink);
-  transition: all 0.1s;
+  transition: background 0.1s, transform 0.1s;
 }
 .calc-btn:hover { background: var(--primary-soft); }
 .calc-btn:active { transform: scale(0.95); }
@@ -730,7 +730,7 @@ table.t tfoot td {
 }
 .theme-swatch {
   border: 2px solid transparent; border-radius: 13px;
-  padding: 4px; cursor: pointer; transition: all 0.15s;
+  padding: 4px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
   background: white;
 }
 .theme-swatch.sel { border-color: var(--ink); }
@@ -770,7 +770,7 @@ table.t tfoot td {
   background: var(--primary-soft); color: var(--primary-dark);
   padding: 3px 9px; border-radius: 999px;
   font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: all 0.15s; user-select: none;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; user-select: none;
 }
 .tag:hover { background: var(--primary); color: white; }
 .tag.is-me {
@@ -792,7 +792,7 @@ table.t tfoot td {
 .trav-edit-btn {
   padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
   border: 1px solid var(--line); background: transparent; cursor: pointer;
-  color: var(--ink-soft); transition: all 0.15s;
+  color: var(--ink-soft); transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .trav-edit-btn:hover { border-color: var(--primary); color: var(--primary); }
 .trav-edit-btn.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
@@ -818,7 +818,7 @@ table.t tfoot td {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
   border: 1.5px solid var(--primary); color: var(--primary);
-  background: transparent; cursor: pointer; transition: all 0.15s; user-select: none;
+  background: transparent; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; user-select: none;
 }
 .group-chip-btn.selected { background: var(--primary); color: white; }
 .group-chip-btn:hover { background: var(--primary); color: white; }
@@ -828,7 +828,7 @@ table.t tfoot td {
   padding: 3px 9px; border-radius: 999px;
   font-size: 12px; font-weight: 600;
   cursor: grab; user-select: none;
-  transition: all 0.15s; margin: 2px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; margin: 2px;
 }
 .trav-draggable:active { cursor: grabbing; opacity: 0.6; }
 .trav-draggable.is-me { background: var(--primary); color: white; }
@@ -895,7 +895,7 @@ table.t tfoot td {
   background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 11px;
   padding: 10px 12px;
-  cursor: pointer; transition: all 0.15s; user-select: none;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; user-select: none;
 }
 .split-pill:hover {
   border-color: var(--primary); background: var(--primary-soft);
@@ -950,7 +950,7 @@ table.t tfoot td {
   padding: 10px 6px;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
   color: var(--ink);
 }
 .split-method:hover { background: var(--primary-soft); border-color: var(--primary); }
@@ -987,7 +987,7 @@ table.t tfoot td {
   border: 1px solid var(--line);
   border-radius: 999px; padding: 5px 11px;
   font-size: 13px; cursor: pointer; user-select: none;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .split-chip:hover { border-color: var(--primary); }
 .split-chip.on {
@@ -1001,7 +1001,7 @@ table.t tfoot td {
   width: 14px; height: 14px; border-radius: 50%;
   border: 2px solid var(--line-strong); background: white;
   display: grid; place-items: center;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .split-chip.on .dot {
   background: var(--primary); border-color: var(--primary);
@@ -1068,7 +1068,7 @@ table.t tfoot td {
   font-size: 12px; font-weight: 600;
   color: var(--ink);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
   font-variant-numeric: tabular-nums;
 }
 .split-cell-btn:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
@@ -1079,7 +1079,7 @@ table.t tfoot td {
   display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 8px; padding: 4px 8px; min-height: 32px;
-  font-size: 12px; cursor: pointer; transition: all 0.15s;
+  font-size: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
   width: 100%; text-align: left; color: var(--ink);
 }
 .payer-btn:hover { border-color: var(--primary); background: var(--primary-soft); }
@@ -1104,7 +1104,7 @@ table.t tfoot td {
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 999px; padding: 6px 12px;
   font-size: 13px; font-weight: 500; cursor: pointer;
-  user-select: none; transition: all 0.15s;
+  user-select: none; transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .settle-payer-chip:hover { border-color: var(--primary); background: var(--primary-soft); }
 .settle-payer-chip.on {
@@ -1112,7 +1112,7 @@ table.t tfoot td {
 }
 .settle-payer-chip .chip-dot {
   width: 8px; height: 8px; border-radius: 50%;
-  border: 2px solid var(--line-strong); transition: all 0.15s;
+  border: 2px solid var(--line-strong); transition: background 0.15s, border-color 0.15s;
 }
 .settle-payer-chip.on .chip-dot { border-color: rgba(255,255,255,0.5); background: white; }
 
@@ -1134,7 +1134,7 @@ table.t tfoot td {
   padding: 4px 12px; border-radius: 999px; font-size: 12px;
   font-weight: 600; cursor: pointer; border: 1px solid var(--line);
   background: var(--surface-2); color: var(--ink-soft);
-  transition: all 0.15s; user-select: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; user-select: none;
 }
 .settle-toggle:hover { border-color: var(--primary); }
 .settle-toggle.settled {
@@ -1161,10 +1161,11 @@ table.t tfoot td {
   .tab:not(.active) { display: none; }
   .tabs { display: none; }
   .panel { margin-bottom: 18px; }
-  .print-show { display: block !important; }
+  #print-root { display: block !important; }
+  #app-root { display: none !important; }
   .drive-link-row, .photo-grid, .lightbox-bg, .weather-strip, .on-this-day-banner { display: none !important; }
 }
-.print-show { display: none; }
+#print-root.print-show { display: none; }
 
 /* ====================================================
    PHOTOS TAB

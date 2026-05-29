@@ -18,6 +18,8 @@ const daysUntil     = d     => window.daysUntil(d);
 const fmtBookingTime = v    => window.fmtBookingTime(v);
 const tripDuration  = t     => window.tripDuration(t);
 const showLoginModal = t    => window.showLoginModal(t);
+const isEditing   = () => window.isEditing();
+const isShareMode = () => window.isShareMode();
 
 
 const ALL_TABS    = ["overview","itinerary","expenses","packing","reservations","notes","photos"];
@@ -28,19 +30,125 @@ const NOTE_COLORS = ["#fef9c3","#dcfce7","#dbeafe","#fce7f3","#ffe4e6"];
 // -------- RENDER --------
 function render() {
   document.documentElement.setAttribute("data-theme", state.settings.theme || "beach");
-  stopTzClock(); stopItinClock();
+  window.stopTzClock?.(); window.stopItinClock?.();
   const root = document.getElementById("app-root");
   if (route.view === "home") root.innerHTML = renderHome();
   else if (route.view === "trip") root.innerHTML = renderTrip();
-  document.querySelectorAll("textarea.autogrow").forEach(autoGrow);
-  if (route.view === "trip" && currentTrip()?.timezone) startTzClock();
-  if (route.view === "trip" && route.tab === "itinerary") startItinClock();
+  document.querySelectorAll("textarea.autogrow:not([data-autogrow-bound])").forEach(autoGrow);
+  if (route.view === "trip" && currentTrip()?.timezone) window.startTzClock?.();
+  if (route.view === "trip" && route.tab === "itinerary") {
+    requestAnimationFrame(() => {
+      window.applyItineraryTimeState?.();
+      window.renderCurrentTimeLine?.();
+    });
+    window.startItinClock?.();
+  }
+  if (route.view === "trip" && route.tab === "photos") window.setupPhotoLazyLoad?.();
   if (route.view === "home") setupPastYearScrubber();
 }
 
 function autoGrow(el) {
+  if (el.dataset.autogrowBound) return;
+  el.dataset.autogrowBound = "1";
   const adjust = () => { el.style.height = "auto"; el.style.height = (el.scrollHeight + 2) + "px"; };
-  el.addEventListener("input", adjust); adjust();
+  el.addEventListener("input", adjust);
+  adjust();
+}
+
+function buildPrintHtml(t) {
+  return `
+    ${renderOverview(t)}
+    <h2 style="margin:24px 0 12px;">Itinerary</h2>
+    ${renderItinerary(t)}
+    <h2 style="margin:24px 0 12px;">Expenses</h2>
+    ${renderExpenses(t, true)}
+    <h2 style="margin:24px 0 12px;">Packing List</h2>
+    ${renderPacking(t)}
+    <h2 style="margin:24px 0 12px;">Reservations</h2>
+    ${renderReservations(t, true)}
+    ${getNotes(t).length ? `<h2 style="margin:24px 0 12px;">Notes</h2><div class="panel"><div class="sticky-board">${getNotes(t).map((n,i)=>`<div class="sticky-note" style="background:${NOTE_COLORS[i%NOTE_COLORS.length]};pointer-events:none"><div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(n.text)}</div></div>`).join("")}</div></div>` : ""}
+  `;
+}
+
+function injectPrintContent() {
+  const t = currentTrip();
+  const printRoot = document.getElementById("print-root");
+  if (!t || !printRoot || route.view !== "trip") return;
+  printRoot.innerHTML = buildPrintHtml(t);
+  document.querySelectorAll("#print-root textarea.autogrow:not([data-autogrow-bound])").forEach(autoGrow);
+}
+
+function clearPrintContent() {
+  const printRoot = document.getElementById("print-root");
+  if (printRoot) printRoot.innerHTML = "";
+}
+
+window.addEventListener("beforeprint", injectPrintContent);
+window.addEventListener("afterprint", clearPrintContent);
+
+function getTripHeaderStats(t) {
+  const totalSpend = (t.expenses || []).reduce((s, e) => s + (parseFloat(e.cost) || 0), 0);
+  const _myTraveler = getMyTraveler(t.id);
+  const myExpensesTotal = _myTraveler
+    ? (t.expenses || []).filter(e => expenseParticipants(e, t.travelers || []).includes(_myTraveler))
+        .reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
+    : null;
+  const reservOpen = (t.reservations || []).filter(r => r.status !== "booked" && r.status !== "cancelled" && r.name?.trim()).length;
+  const packTotal = (t.packing || []).reduce((s, c) => s + c.items.length, 0);
+  const packDone = (t.packing || []).reduce((s, c) => s + c.items.filter(i => i.packed).length, 0);
+  return { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal };
+}
+
+function updateTripHeaderStats(t) {
+  if (!t) t = currentTrip();
+  if (!t) return;
+  const { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal } = getTripHeaderStats(t);
+  const el = (id) => document.getElementById(id);
+  const spend = el("stat-total-spend");
+  if (spend) spend.textContent = fmtCurrency(totalSpend);
+  const mine = el("stat-my-expenses");
+  if (mine) mine.textContent = fmtCurrency(myExpensesTotal);
+  const packed = el("stat-packed");
+  if (packed) packed.textContent = `${packDone}/${packTotal}`;
+  const book = el("stat-to-book");
+  if (book) book.textContent = String(reservOpen);
+}
+
+function renderExpensesPanel() {
+  const t = currentTrip();
+  const root = document.getElementById("expenses-root");
+  if (!t || !root) return false;
+  root.innerHTML = renderExpenses(t);
+  root.querySelectorAll("textarea.autogrow:not([data-autogrow-bound])").forEach(autoGrow);
+  updateTripHeaderStats(t);
+  return true;
+}
+
+function renderPackingPanel() {
+  const t = currentTrip();
+  const root = document.getElementById("packing-root");
+  if (!t || !root) return false;
+  root.innerHTML = renderPacking(t);
+  root.querySelectorAll("textarea.autogrow:not([data-autogrow-bound])").forEach(autoGrow);
+  updateTripHeaderStats(t);
+  return true;
+}
+
+function renderReservationsPanel() {
+  const t = currentTrip();
+  const root = document.getElementById("reservations-root");
+  if (!t || !root) return false;
+  root.innerHTML = renderReservations(t);
+  root.querySelectorAll("textarea.autogrow:not([data-autogrow-bound])").forEach(autoGrow);
+  return true;
+}
+
+function tripPanelRender() {
+  if (route.view !== "trip") { render(); return; }
+  if (route.tab === "expenses" && renderExpensesPanel()) return;
+  if (route.tab === "packing" && renderPackingPanel()) return;
+  if (route.tab === "reservations" && renderReservationsPanel()) return;
+  render();
 }
 
 // -------- TRIP DETAIL --------
@@ -57,17 +165,8 @@ function renderTrip() {
   else cdLabel = `${-dU} days ago`;
 
   const nights = tripDuration(t);
-  const totalSpend = (t.expenses || []).reduce((s, e) => s + (parseFloat(e.cost) || 0), 0);
-  const numPeople = Math.max(1, (t.travelers || []).length);
-  const perPerson = totalSpend / numPeople;
+  const { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal } = getTripHeaderStats(t);
   const _myTraveler = getMyTraveler(t.id);
-  const myExpensesTotal = _myTraveler
-    ? (t.expenses || []).filter(e => expenseParticipants(e, t.travelers || []).includes(_myTraveler))
-        .reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
-    : null;
-  const reservOpen = (t.reservations || []).filter(r => r.status !== "booked" && r.status !== "cancelled" && r.name?.trim()).length;
-  const packTotal = t.packing.reduce((s, c) => s + c.items.length, 0);
-  const packDone = t.packing.reduce((s, c) => s + c.items.filter(i => i.packed).length, 0);
 
   const allowedTabs = window._shareTabs || ALL_TABS;
   if (!allowedTabs.includes(route.tab)) {
@@ -78,7 +177,7 @@ function renderTrip() {
     <div class="trip-header">
       <div class="trip-header-row">
         ${getTripThumbnailUrl(t)
-          ? `<div class="trip-emoji" onclick="openTripAvatarMenu()" title="Photo options" style="padding:0;overflow:hidden;cursor:pointer;"><img src="${escapeAttr(getTripThumbnailUrl(t))}" style="width:100%;height:100%;object-fit:cover;border-radius:22px;" /></div>`
+          ? `<div class="trip-emoji" onclick="openTripAvatarMenu()" title="Photo options" style="padding:0;overflow:hidden;cursor:pointer;"><img src="${escapeAttr(getTripThumbnailUrl(t))}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:22px;" /></div>`
           : `<div class="trip-emoji" onclick="openEmojiPicker()" title="Change icon">${t.emoji}</div>`
         }
         <div class="trip-meta">
@@ -138,10 +237,10 @@ function renderTrip() {
         <div class="stat"><div class="stat-label">Countdown</div><div class="stat-value primary">${cdLabel}</div></div>
         <div class="stat"><div class="stat-label">Duration</div><div class="stat-value">${nights ? nights + (nights===1?" day":" days") : "—"}</div></div>
         <div class="stat"><div class="stat-label">Travelers</div><div class="stat-value">${(t.travelers||[]).length || "—"}</div></div>
-        ${allowedTabs.includes("expenses") ? `<div class="stat"><div class="stat-label">Total spend</div><div class="stat-value accent">${fmtCurrency(totalSpend)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">all expenses</div></div>` : ""}
-        ${allowedTabs.includes("expenses") && _myTraveler ? `<div class="stat"><div class="stat-label">Your expenses</div><div class="stat-value">${fmtCurrency(myExpensesTotal)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">as ${escapeHtml(_myTraveler)}</div></div>` : ""}
-        ${allowedTabs.includes("packing") ? `<div class="stat"><div class="stat-label">Packed</div><div class="stat-value">${packDone}/${packTotal}</div></div>` : ""}
-        ${allowedTabs.includes("reservations") ? `<div class="stat"><div class="stat-label">To book</div><div class="stat-value">${reservOpen}</div></div>` : ""}
+        ${allowedTabs.includes("expenses") ? `<div class="stat"><div class="stat-label">Total spend</div><div class="stat-value accent" id="stat-total-spend">${fmtCurrency(totalSpend)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">all expenses</div></div>` : ""}
+        ${allowedTabs.includes("expenses") && _myTraveler ? `<div class="stat"><div class="stat-label">Your expenses</div><div class="stat-value" id="stat-my-expenses">${fmtCurrency(myExpensesTotal)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">as ${escapeHtml(_myTraveler)}</div></div>` : ""}
+        ${allowedTabs.includes("packing") ? `<div class="stat"><div class="stat-label">Packed</div><div class="stat-value" id="stat-packed">${packDone}/${packTotal}</div></div>` : ""}
+        ${allowedTabs.includes("reservations") ? `<div class="stat"><div class="stat-label">To book</div><div class="stat-value" id="stat-to-book">${reservOpen}</div></div>` : ""}
         ${t.timezone ? `<div class="stat" id="tz-stat"><div class="stat-label">Local time</div><div class="stat-value" id="tz-clock">—</div></div>` : ""}
       </div>
     </div>
@@ -158,25 +257,11 @@ function renderTrip() {
 
     ${tab === "overview" ? renderOverview(t) : ""}
     ${tab === "itinerary" ? renderItinerary(t) : ""}
-    ${tab === "expenses" ? renderExpenses(t) : ""}
-    ${tab === "packing" ? renderPacking(t) : ""}
-    ${tab === "reservations" ? renderReservations(t) : ""}
+    ${tab === "expenses" ? `<div id="expenses-root">${renderExpenses(t)}</div>` : ""}
+    ${tab === "packing" ? `<div id="packing-root">${renderPacking(t)}</div>` : ""}
+    ${tab === "reservations" ? `<div id="reservations-root">${renderReservations(t)}</div>` : ""}
     ${tab === "notes" ? renderNotes(t) : ""}
     ${tab === "photos" ? renderPhotos(t) : ""}
-
-    <!-- Hidden in screen, shown in print -->
-    <div class="print-show">
-      ${renderOverview(t)}
-      <h2 style="margin:24px 0 12px;">Itinerary</h2>
-      ${renderItinerary(t)}
-      <h2 style="margin:24px 0 12px;">Expenses</h2>
-      ${renderExpenses(t, true)}
-      <h2 style="margin:24px 0 12px;">Packing List</h2>
-      ${renderPacking(t)}
-      <h2 style="margin:24px 0 12px;">Reservations</h2>
-      ${renderReservations(t, true)}
-      ${getNotes(t).length ? `<h2 style="margin:24px 0 12px;">Notes</h2><div class="panel"><div class="sticky-board">${getNotes(t).map((n,i)=>`<div class="sticky-note" style="background:${NOTE_COLORS[i%NOTE_COLORS.length]};pointer-events:none"><div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(n.text)}</div></div>`).join("")}</div></div>` : ""}
-    </div>
   `;
 }
 
@@ -201,5 +286,9 @@ function svgIcon(name) {
   return icons[name] || "";
 }
 
-Object.assign(window, { render, autoGrow, renderTrip, tabBtn, svgIcon });
+Object.assign(window, {
+  render, autoGrow, renderTrip, tabBtn, svgIcon,
+  buildPrintHtml, updateTripHeaderStats, getTripHeaderStats,
+  renderExpensesPanel, renderPackingPanel, renderReservationsPanel, tripPanelRender,
+});
 

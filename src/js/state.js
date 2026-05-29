@@ -90,7 +90,11 @@ export function openTrip(id, tab) {
 export function setTab(t) { setTravEditMode(false); route.tab = t; render(); }
 export function setPastYearFilter(y) {
   pastYearFilter = y;
-  render();
+  if (route.view === "home" && typeof window.renderHomePast === "function") {
+    window.renderHomePast();
+  } else {
+    render();
+  }
   requestAnimationFrame(() => scrollPastYearIntoView(y));
 }
 export function scrollPastYearIntoView(y) {

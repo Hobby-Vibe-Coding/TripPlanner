@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "db:seed": "psql $DATABASE_URL -f schema.sql"
+    "dev":         "node scripts/dev-launch.cjs",
+    "stop":        "node scripts/dev-shutdown.cjs",
+    "db:seed":     "psql $DATABASE_URL -f schema.sql",
+    "db:migrate":  "node scripts/migrate-to-relational.cjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

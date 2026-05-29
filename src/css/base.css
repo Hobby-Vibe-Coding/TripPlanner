@@ -89,7 +89,7 @@ input, textarea, select { font-family: inherit; }
   width: 38px; height: 38px; border-radius: 10px;
   background: var(--surface-solid); border: 1px solid var(--line);
   display: grid; place-items: center; color: var(--ink);
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .icon-btn:hover { background: var(--primary-soft); border-color: var(--line-strong); }
 .icon-btn svg { width: 18px; height: 18px; }
@@ -99,7 +99,7 @@ input, textarea, select { font-family: inherit; }
   padding: 0 12px 0 6px; height: 38px; border-radius: 10px;
   background: var(--surface-solid); border: 1px solid var(--line);
   color: var(--ink); font: inherit; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; white-space: nowrap;
 }
 .user-chip:hover { background: var(--primary-soft); border-color: var(--line-strong); }
 .user-avatar {
@@ -152,7 +152,7 @@ input, textarea, select { font-family: inherit; }
 .year-pill {
   padding: 4px 12px; border-radius: 999px; border: 1.5px solid var(--line);
   background: transparent; font-size: 13px; font-weight: 600; color: var(--ink-soft);
-  cursor: pointer; transition: all 0.15s;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .year-pill:hover { border-color: var(--primary); color: var(--primary); }
 .year-pill.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
@@ -167,7 +167,7 @@ input, textarea, select { font-family: inherit; }
   border-radius: 18px;
   padding: 18px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(8px);
@@ -217,7 +217,7 @@ input, textarea, select { font-family: inherit; }
   align-items: center; justify-content: center;
   min-height: 270px; cursor: pointer;
   color: var(--primary); font-weight: 600;
-  transition: all 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 .trip-card.new:hover {
   border-color: var(--primary); background: var(--primary-soft);
@@ -281,7 +281,7 @@ input, textarea, select { font-family: inherit; }
   cursor: pointer;
   white-space: nowrap;
   scroll-snap-align: center;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .year-pill-mini.active {
   border-style: solid;
@@ -308,7 +308,7 @@ input, textarea, select { font-family: inherit; }
   display: inline-flex; flex-direction: column; align-items: center; gap: 8px;
   cursor: pointer; user-select: none;
   padding: 2px 4px; border-radius: 12px;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
   scroll-snap-align: center;
   scroll-snap-stop: always;
   z-index: 1;
@@ -412,7 +412,7 @@ input, textarea, select { font-family: inherit; }
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   transform: translateY(0);
-  transition: all 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
   position: relative; overflow: hidden;
 }
 .postcard:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
@@ -443,7 +443,7 @@ input, textarea, select { font-family: inherit; }
   padding: 10px 12px;
   opacity: 0;
   transform: translateY(6px);
-  transition: all 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
   pointer-events: none;
 }
 .postcard:hover .postcard-reveal,
@@ -498,7 +498,7 @@ input, textarea, select { font-family: inherit; }
   padding: 10px 16px; border-radius: 11px;
   font-weight: 600; font-size: 14px;
   border: 1px solid transparent; cursor: pointer;
-  transition: all 0.15s; text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; text-decoration: none;
   color: var(--ink); background: var(--surface-solid);
   border-color: var(--line);
 }

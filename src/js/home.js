@@ -70,8 +70,9 @@ function renderOnThisDay() {
 }
 
 // -------- HOME / DASHBOARD --------
-function renderHome() {
+let homeUpcomingLimit = 12;
 
+function getHomeTripLists() {
   const trips = state.trips.slice().sort((a, b) => (a.startDate || "z").localeCompare(b.startDate || "z"));
   const upcoming = trips.filter(t => {
     const d = daysUntil(t.endDate); return d === null || d >= 0;
@@ -79,7 +80,89 @@ function renderHome() {
   const past = trips.filter(t => {
     const d = daysUntil(t.endDate); return d !== null && d < 0;
   });
+  return { trips, upcoming, past };
+}
 
+function renderUpcomingSection() {
+  const { upcoming } = getHomeTripLists();
+  const visible = upcoming.slice(0, homeUpcomingLimit);
+  const hasMore = upcoming.length > visible.length;
+  return `
+    <div class="section-head">
+      <h2>Upcoming <span class="muted">${upcoming.length} ${upcoming.length === 1 ? "trip" : "trips"}</span></h2>
+    </div>
+    <div class="trip-grid">
+      ${visible.map(renderTripCard).join("")}
+      <div class="trip-card new" onclick="openNewTrip()">
+        <div class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+        <div>Plan a new trip</div>
+      </div>
+    </div>
+    ${hasMore ? `<div style="text-align:center;margin-top:14px;"><button class="btn sm" onclick="loadMoreUpcoming()">Load more (${upcoming.length - visible.length} remaining)</button></div>` : ""}
+  `;
+}
+
+function renderPastSection() {
+  const { past } = getHomeTripLists();
+  if (!past.length) return "";
+  const pastYears = [...new Set(past.map(t => (t.startDate || "").slice(0, 4)).filter(Boolean))].sort((a, b) => a - b);
+  const activeYear = pastYears.includes(pastYearFilter) ? pastYearFilter : "all";
+  const yearCounts = pastYears.reduce((acc, y) => {
+    acc[y] = past.filter(t => (t.startDate || "").startsWith(y)).length;
+    return acc;
+  }, {});
+  const yearsToShow = activeYear === "all" ? pastYears : pastYears.filter(y => y === activeYear);
+  const filteredCount = activeYear === "all"
+    ? past.length
+    : past.filter(t => (t.startDate || "").startsWith(activeYear)).length;
+  const filteredTrips = activeYear === "all"
+    ? past
+    : past.filter(t => (t.startDate || "").startsWith(activeYear));
+
+  const timelineHtml = `
+    <div class="year-map" role="tablist" aria-label="Past years">
+      <button class="year-pill-mini ${activeYear === 'all' ? 'active' : ''}" onclick="setPastYearFilter('all')">All</button>
+      <div class="year-track" id="year-track">
+        ${pastYears.map(y => `
+          <div class="year-node ${activeYear === y ? 'active' : ''}" data-year="${y}" onclick="setPastYearFilter('${y}')" role="button">
+            <div class="year-dot"></div>
+            <div class="year-label">${y}</div>
+            <div class="year-count">${yearCounts[y]}</div>
+          </div>`).join("")}
+        <div class="year-handle" id="year-handle"><div class="year-tooltip" id="year-tooltip"></div></div>
+      </div>
+    </div>`;
+
+  const wallHtml = activeYear === "all"
+    ? yearsToShow.map((y, idx) => {
+        const tripsForYear = past.filter(t => (t.startDate || "").startsWith(y));
+        return `
+          <div class="past-year" id="past-year-${y}" data-year="${y}">
+            <div class="past-year-header">${y} · ${tripsForYear.length} trip${tripsForYear.length === 1 ? "" : "s"}</div>
+            <div class="postcard-row">
+              ${tripsForYear.map((t, i) => renderPostcard(t, i + idx)).join("")}
+            </div>
+          </div>`;
+      }).join("")
+    : `<div class="postcard-grid">${filteredTrips.map(renderPostcard).join("")}</div>`;
+
+  return `
+    <section class="past-section" id="past-root">
+      <div class="past-head">
+        <div class="past-title">
+          <h2>Past</h2>
+          <span class="muted">${filteredCount} ${filteredCount === 1 ? "trip" : "trips"}</span>
+        </div>
+        ${timelineHtml}
+      </div>
+      <div class="postcard-wall">
+        ${wallHtml}
+      </div>
+    </section>`;
+}
+
+function renderHome() {
+  const { trips, upcoming } = getHomeTripLists();
   const nextTrip = upcoming.find(t => daysUntil(t.startDate) !== null);
   const heroSub = nextTrip
     ? `Your next adventure is <strong>${escapeHtml(nextTrip.title)}</strong> — ${daysUntil(nextTrip.startDate) > 0 ? daysUntil(nextTrip.startDate) + " days to go" : daysUntil(nextTrip.startDate) === 0 ? "starts today!" : "in progress"} 🎉`
@@ -104,74 +187,34 @@ function renderHome() {
         <button class="btn primary lg" onclick="openNewTrip()">+ Plan my first trip</button>
       </div>
     ` : `
-      <div class="section-head">
-        <h2>Upcoming <span class="muted">${upcoming.length} ${upcoming.length === 1 ? "trip" : "trips"}</span></h2>
-      </div>
-      <div class="trip-grid">
-        ${upcoming.map(renderTripCard).join("")}
-        <div class="trip-card new" onclick="openNewTrip()">
-          <div class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-          <div>Plan a new trip</div>
-        </div>
-      </div>
-      ${past.length ? (() => {
-        const pastYears = [...new Set(past.map(t => (t.startDate || "").slice(0, 4)).filter(Boolean))].sort((a, b) => a - b);
-        const activeYear = pastYears.includes(pastYearFilter) ? pastYearFilter : "all";
-        const yearCounts = pastYears.reduce((acc, y) => {
-          acc[y] = past.filter(t => (t.startDate || "").startsWith(y)).length;
-          return acc;
-        }, {});
-        const yearsToShow = activeYear === "all" ? pastYears : pastYears.filter(y => y === activeYear);
-        const filteredCount = activeYear === "all"
-          ? past.length
-          : past.filter(t => (t.startDate || "").startsWith(activeYear)).length;
-        const filteredTrips = activeYear === "all"
-          ? past
-          : past.filter(t => (t.startDate || "").startsWith(activeYear));
-
-        const timelineHtml = `
-          <div class="year-map" role="tablist" aria-label="Past years">
-            <button class="year-pill-mini ${activeYear === 'all' ? 'active' : ''}" onclick="setPastYearFilter('all')">All</button>
-            <div class="year-track" id="year-track">
-              ${pastYears.map(y => `
-                <div class="year-node ${activeYear === y ? 'active' : ''}" data-year="${y}" onclick="setPastYearFilter('${y}')" role="button">
-                  <div class="year-dot"></div>
-                  <div class="year-label">${y}</div>
-                  <div class="year-count">${yearCounts[y]}</div>
-                </div>`).join("")}
-              <div class="year-handle" id="year-handle"><div class="year-tooltip" id="year-tooltip"></div></div>
-            </div>
-          </div>`;
-
-        const wallHtml = activeYear === "all"
-          ? yearsToShow.map((y, idx) => {
-              const tripsForYear = past.filter(t => (t.startDate || "").startsWith(y));
-              return `
-                <div class="past-year" id="past-year-${y}" data-year="${y}">
-                  <div class="past-year-header">${y} · ${tripsForYear.length} trip${tripsForYear.length === 1 ? "" : "s"}</div>
-                  <div class="postcard-row">
-                    ${tripsForYear.map((t, i) => renderPostcard(t, i + idx)).join("")}
-                  </div>
-                </div>`;
-            }).join("")
-          : `<div class="postcard-grid">${filteredTrips.map(renderPostcard).join("")}</div>`;
-
-        return `
-          <section class="past-section" id="past-root">
-            <div class="past-head">
-              <div class="past-title">
-                <h2>Past</h2>
-                <span class="muted">${filteredCount} ${filteredCount === 1 ? "trip" : "trips"}</span>
-              </div>
-              ${timelineHtml}
-            </div>
-            <div class="postcard-wall">
-              ${wallHtml}
-            </div>
-          </section>`;
-      })() : ""}
+      <div id="home-upcoming-section">${renderUpcomingSection()}</div>
+      <div id="home-past-section">${renderPastSection()}</div>
     `}
   `;
+}
+
+function renderHomeUpcoming() {
+  const el = document.getElementById("home-upcoming-section");
+  if (!el) { render(); return; }
+  el.innerHTML = renderUpcomingSection();
+}
+
+function renderHomePast() {
+  const el = document.getElementById("home-past-section");
+  if (!el) { render(); return; }
+  el.innerHTML = renderPastSection();
+  setupPastYearScrubber();
+}
+
+function homePanelRender() {
+  if (route.view !== "home") { render(); return; }
+  renderHomeUpcoming();
+  renderHomePast();
+}
+
+function loadMoreUpcoming() {
+  homeUpcomingLimit += 12;
+  renderHomeUpcoming();
 }
 
 function getFileThumbUrl(f, size = 400) {
@@ -206,7 +249,7 @@ function renderTripCard(t) {
     <div class="trip-card" onclick="openTrip('${t.id}')">
       <div class="trip-card-cd ${cdClass}">${cdLabel}</div>
       ${(() => { const tu = getTripThumbnailUrl(t); return `<div class="trip-card-banner${tu ? " has-thumb" : ""}">
-        ${tu ? `<img src="${escapeAttr(tu)}" alt="${escapeHtml(t.title)}" onerror="this.parentElement.classList.remove('has-thumb');this.remove()" />` : (t.emoji || "🌍")}
+        ${tu ? `<img src="${escapeAttr(tu)}" alt="${escapeHtml(t.title)}" loading="lazy" decoding="async" onerror="this.parentElement.classList.remove('has-thumb');this.remove()" />` : (t.emoji || "🌍")}
       </div>`; })()}
       <div class="trip-card-title">${escapeHtml(t.title)}</div>
       <div class="trip-card-dest">${escapeHtml(t.destination || "Destination TBD")}</div>
@@ -246,7 +289,7 @@ function renderPostcard(t, idx) {
   const nights = tripDuration(t);
   const memoryLine = getTripMemoryLine(t);
   return `
-    <article class="postcard" onclick="handlePostcardClick(event, '${t.id}')">
+    <article class="postcard" data-trip-id="${escapeAttr(t.id)}" onclick="handlePostcardClick(event, '${t.id}')">
       <div class="stamp">${(t.startDate || "").slice(0,4) || ""}</div>
       <div class="postcard-emoji">${t.emoji || "🌍"}</div>
       <div class="postcard-title">${escapeHtml(t.title)}</div>
@@ -382,7 +425,13 @@ function openMemoryLineEditor(tripId) {
         t.memoryLine = v;
         saveState();
         closeModal();
-        render();
+        const card = document.querySelector(`.postcard[data-trip-id="${tripId}"]`);
+        if (card) {
+          const mem = card.querySelector(".postcard-memory");
+          if (mem) mem.textContent = v || (t.destination || "").trim() || "Memory";
+        } else {
+          homePanelRender();
+        }
       }}
     ]
   });
@@ -390,7 +439,7 @@ function openMemoryLineEditor(tripId) {
 
 Object.assign(window, {
   getOnThisDayTrips, renderOnThisDay,
-  renderHome,
+  renderHome, renderHomeUpcoming, renderHomePast, homePanelRender, loadMoreUpcoming,
   getFileThumbUrl, getTripThumbnailUrl, renderTripCard, getTripMemoryLine, renderPostcard,
   setupPastYearScrubber, handlePostcardClick, openMemoryLineEditor,
 });

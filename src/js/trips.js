@@ -101,7 +101,8 @@ function duplicateTrip(id, ev) {
   (clone.packing || []).forEach(cat => cat.items.forEach(item => { item.packed = false; item.id = uid(); }));
   state.trips.push(clone);
   saveState();
-  render();
+  if (route.view === "home" && typeof window.homePanelRender === "function") window.homePanelRender();
+  else render();
 }
 
 // -------- TRIP-LEVEL UPDATES --------

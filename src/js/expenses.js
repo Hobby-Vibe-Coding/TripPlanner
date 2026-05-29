@@ -33,14 +33,19 @@ const SPLIT_METHODS = [
 let expensePage = 0;
 let expensePageSize = 10;
 let expenseSearch = "";
-function setExpensePage(page) { expensePage = page; render(); }
-function setExpensePageSize(size) { expensePageSize = parseInt(size); expensePage = 0; render(); }
+let expenseSearchTimer = null;
+const tripPanelRender = () => window.tripPanelRender();
+function setExpensePage(page) { expensePage = page; tripPanelRender(); }
+function setExpensePageSize(size) { expensePageSize = parseInt(size); expensePage = 0; tripPanelRender(); }
 function setExpenseSearch(query) {
   expenseSearch = query;
   expensePage = 0;
-  render();
-  const el = document.getElementById("expense-search");
-  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  clearTimeout(expenseSearchTimer);
+  expenseSearchTimer = setTimeout(() => {
+    if (!window.renderExpensesPanel()) window.render();
+    const el = document.getElementById("expense-search");
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }, 200);
 }
 
 // -------- EXPENSE SPLIT LOGIC --------
@@ -269,13 +274,13 @@ function renderExpenses(t, printMode) {
           </div>
           <div style="display:flex;align-items:center;gap:4px;">
             <span style="color:var(--ink-soft);margin-right:4px;">Page ${safePage+1} of ${totalPages}</span>
-            <button class="btn sm" onclick="setExpensePage(${safePage-1})" ${safePage===0?'disabled':''} style="min-width:32px;">‹</button>
+            <button class="btn sm" onclick="setExpensePage(${safePage-1})" ${safePage===0?'disabled':''} style="min-width:32px;padding:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
             ${Array.from({length:totalPages},(_,k)=>k).filter(k=>Math.abs(k-safePage)<=2||k===0||k===totalPages-1).reduce((acc,k,idx,arr)=>{
               if(idx>0&&k-arr[idx-1]>1) acc.push('<span style="color:var(--ink-soft);padding:0 2px;">…</span>');
               acc.push(`<button class="btn sm ${k===safePage?'primary':''}" onclick="setExpensePage(${k})" style="min-width:32px;">${k+1}</button>`);
               return acc;
             },[]).join('')}
-            <button class="btn sm" onclick="setExpensePage(${safePage+1})" ${safePage===totalPages-1?'disabled':''} style="min-width:32px;">›</button>
+            <button class="btn sm" onclick="setExpensePage(${safePage+1})" ${safePage===totalPages-1?'disabled':''} style="min-width:32px;padding:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
           </div>
         </div>` : ''}
 
@@ -332,7 +337,7 @@ function openSplitEditor(i) {
     size: "lg",
     body: `<div id="split-editor-body"></div>`,
     actions: [
-      { label: "Done", primary: true, onClick: () => { saveState(); closeModal(); render(); } }
+      { label: "Done", primary: true, onClick: () => { saveState(); closeModal(); tripPanelRender(); } }
     ]
   });
   renderSplitEditor(i);
@@ -645,7 +650,7 @@ function openPayerDialog(i) {
     size: "lg",
     body: `<div id="payer-dialog-body"></div>`,
     actions: [
-      { label: "Done", primary: true, onClick: () => { saveState(); closeModal(); render(); } }
+      { label: "Done", primary: true, onClick: () => { saveState(); closeModal(); tripPanelRender(); } }
     ]
   });
   renderPayerDialog(i);
@@ -774,7 +779,7 @@ function settleWithPerson(otherName) {
           }
         });
         if (changed) saveState();
-        closeModal(); render();
+        closeModal(); tripPanelRender();
       }},
       { label: 'Cancel', onClick: closeModal }
     ]
@@ -788,7 +793,7 @@ function settleOneDebt(expenseIdx, nameToSettle) {
   e.settledBy = e.settledBy || [];
   if (!e.settledBy.includes(nameToSettle)) {
     e.settledBy.push(nameToSettle);
-    saveState(); render();
+    saveState(); tripPanelRender();
   }
 }
 function buildDetailedDebts(t) {
@@ -968,19 +973,18 @@ function addExpense() {
   const t = currentTrip();
   t.expenses = t.expenses || [];
   t.expenses.push({ id: uid(), name: "", category: "Misc", cost: null, date: "", paidBy: [], settledBy: [], note: "" });
-  saveState(); render();
+  saveState(); tripPanelRender();
 }
 function updateExpense(i, key, value) {
   if (!guardEdit()) return;
   const t = currentTrip();
   t.expenses[i][key] = value; saveState();
-  // re-render to update totals
-  if (key === "cost" || key === "paidBy") render();
+  if (key === "cost" || key === "paidBy") tripPanelRender();
 }
 function deleteExpense(i) {
   if (!guardEdit()) return;
   const t = currentTrip();
-  t.expenses.splice(i, 1); saveState(); render();
+  t.expenses.splice(i, 1); saveState(); tripPanelRender();
 }
 
 Object.assign(window, {

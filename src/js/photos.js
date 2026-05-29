@@ -64,7 +64,7 @@ function renderPhotos(t) {
       const isThumb = f.id === thumbnailId;
       const thumbSrc = getFileThumbUrl(f, 400);
       return `<div class="photo-thumb${isThumb ? " is-cover" : ""}" onclick="openLightbox(${i})">
-        <img src="${escapeAttr(thumbSrc)}" alt="${escapeHtml(f.name)}" />
+        <img data-src="${escapeAttr(thumbSrc)}" src="" alt="${escapeHtml(f.name)}" loading="lazy" decoding="async" />
         ${isThumb ? `<div class="photo-thumb-cover-badge">★ Cover</div>` : ""}
         <div class="photo-thumb-overlay">
           ${!shareReadOnly ? `<button class="photo-thumb-star${isThumb ? " is-thumb" : ""}" onclick="setTripThumbnail(event,'${escapeAttr(f.id)}')" title="${isThumb ? "Set another photo as cover" : "Set as trip cover"}">★</button>` : ""}
@@ -105,19 +105,24 @@ async function fetchDrivePhotos(folderId, forceRefresh = false) {
   if (route.view === "trip" && route.tab === "photos") render();
 }
 
+let photoLazyObserver = null;
 function setupPhotoLazyLoad() {
+  if (photoLazyObserver) { photoLazyObserver.disconnect(); photoLazyObserver = null; }
   const imgs = document.querySelectorAll('.photo-thumb img[data-src]');
   if (!imgs.length) return;
   if (!('IntersectionObserver' in window)) {
-    imgs.forEach(img => { img.src = img.dataset.src; });
+    imgs.forEach(img => { if (img.dataset.src) img.src = img.dataset.src; });
     return;
   }
-  const obs = new IntersectionObserver((entries) => {
+  photoLazyObserver = new IntersectionObserver((entries) => {
     entries.forEach(e => {
-      if (e.isIntersecting) { e.target.src = e.target.dataset.src; obs.unobserve(e.target); }
+      if (e.isIntersecting && e.target.dataset.src) {
+        e.target.src = e.target.dataset.src;
+        photoLazyObserver.unobserve(e.target);
+      }
     });
   }, { rootMargin: '400px' });
-  imgs.forEach(img => obs.observe(img));
+  imgs.forEach(img => photoLazyObserver.observe(img));
 }
 
 function refreshDrivePhotos(folderId) {
@@ -245,7 +250,7 @@ function closeLightbox() {
 }
 
 Object.assign(window, {
-  renderPhotos, refreshDrivePhotos, openLinkDriveModal, unlinkDriveFolder,
+  renderPhotos, setupPhotoLazyLoad, refreshDrivePhotos, openLinkDriveModal, unlinkDriveFolder,
   setTripThumbnail, openLightbox, renderLightbox, moveLightbox, closeLightbox,
 });
 
