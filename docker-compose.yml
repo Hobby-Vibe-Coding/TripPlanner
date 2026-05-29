@@ -1,0 +1,28 @@
+# Local PostgreSQL for development.
+# Usage: docker compose up -d    (start)
+#        docker compose stop      (stop — keeps data)
+#        docker compose down -v   (destroy everything including data)
+#
+# DATABASE_URL for .env.local:
+#   postgresql://postgres:password@localhost:5432/tripplanner
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB:       tripplanner
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

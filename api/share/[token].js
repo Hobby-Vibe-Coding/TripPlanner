@@ -1,4 +1,5 @@
-import { getDb } from "../_db.js";
+import { getDb, withTransaction } from "../_db.js";
+import { loadStateFromDB, insertTripRows } from "../data.js";
 
 export const config = {
   api: { bodyParser: { sizeLimit: "8mb" } },
@@ -19,58 +20,33 @@ export default async function handler(req, res) {
 
   const { user_id: userId, trip_id: tripId, mode } = tokenRow[0];
 
-  // ── GET: return the trip + its mode so the frontend knows which auth state to apply ──
+  // ── GET: return the single trip + settings ───────────────────────────────────
   if (req.method === "GET") {
-    const dataRow = await sql`SELECT data FROM app_data WHERE user_id = ${userId}`;
-    if (!dataRow.length) return res.status(404).json({ error: "No data found" });
-
-    let appState;
-    try {
-      appState = JSON.parse(dataRow[0].data);
-    } catch {
-      return res.status(500).json({ error: "Corrupted state data" });
-    }
-
-    const trip = (appState.trips || []).find((t) => t.id === tripId);
+    const state = await loadStateFromDB(sql, userId);
+    const trip = state.trips.find(t => t.id === tripId);
     if (!trip) return res.status(404).json({ error: "Trip not found" });
-
-    return res.status(200).json({ trip, settings: appState.settings, mode });
+    return res.status(200).json({ trip, settings: state.settings, mode });
   }
 
-  // ── PUT: update only the one shared trip (edit-mode tokens only) ──
+  // ── PUT: update the single shared trip (edit-mode only) ──────────────────────
   if (req.method === "PUT") {
-    if (mode !== "edit") {
-      return res.status(403).json({ error: "This share link is read-only" });
-    }
+    if (mode !== "edit") return res.status(403).json({ error: "This share link is read-only" });
 
     const { trip } = req.body || {};
-    if (!trip || typeof trip !== "object") {
-      return res.status(400).json({ error: "trip object required" });
-    }
-    if (trip.id !== tripId) {
-      return res.status(403).json({ error: "Trip ID does not match this share token" });
-    }
+    if (!trip || typeof trip !== "object") return res.status(400).json({ error: "trip object required" });
+    if (trip.id !== tripId) return res.status(403).json({ error: "Trip ID does not match this share token" });
 
-    const dataRow = await sql`SELECT data FROM app_data WHERE user_id = ${userId}`;
-    if (!dataRow.length) return res.status(404).json({ error: "No data found" });
+    // Verify trip belongs to the token owner
+    const ownerCheck = await sql`SELECT trip_order FROM trips WHERE id = ${tripId} AND user_id = ${userId}`;
+    if (!ownerCheck.length) return res.status(404).json({ error: "Trip not found" });
+    const currentOrder = ownerCheck[0].trip_order;
 
-    let appState;
-    try {
-      appState = JSON.parse(dataRow[0].data);
-    } catch {
-      return res.status(500).json({ error: "Corrupted state data" });
-    }
+    // Delete the trip (CASCADE removes all children) and re-insert with updated data
+    await withTransaction(async (txSql) => {
+      await txSql`DELETE FROM trips WHERE id = ${tripId} AND user_id = ${userId}`;
+      await insertTripRows(txSql, userId, trip, currentOrder);
+    });
 
-    const idx = (appState.trips || []).findIndex((t) => t.id === tripId);
-    if (idx === -1) return res.status(404).json({ error: "Trip not found" });
-
-    appState.trips[idx] = trip;
-    const newData = JSON.stringify(appState);
-
-    await sql`
-      INSERT INTO app_data (user_id, data) VALUES (${userId}, ${newData})
-      ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data
-    `;
     return res.status(200).json({ ok: true });
   }
 

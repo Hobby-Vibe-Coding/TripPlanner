@@ -1,9 +1,9 @@
 import { getDb } from "../_db.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
-function randomToken(length = 10) {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+function randomToken() {
+  return crypto.randomBytes(16).toString("hex"); // 32 hex chars, 128-bit entropy
 }
 
 function verifyToken(req) {
@@ -28,37 +28,19 @@ export default async function handler(req, res) {
 
   const { tripId, mode = "read" } = req.body || {};
   if (!tripId) return res.status(400).json({ error: "tripId required" });
-  if (mode !== "read" && mode !== "edit") {
-    return res.status(400).json({ error: "mode must be 'read' or 'edit'" });
-  }
+  if (mode !== "read" && mode !== "edit") return res.status(400).json({ error: "mode must be 'read' or 'edit'" });
 
   const sql = getDb();
 
-  // Validate the trip belongs to this user before creating a share link.
-  const dataRow = await sql`SELECT data FROM app_data WHERE user_id = ${user.id}`;
-  if (!dataRow.length) return res.status(404).json({ error: "No data found" });
+  // Validate the trip belongs to this user
+  const tripRow = await sql`SELECT 1 FROM trips WHERE id = ${tripId} AND user_id = ${user.id} LIMIT 1`;
+  if (!tripRow.length) return res.status(404).json({ error: "Trip not found" });
 
-  let appState;
-  try {
-    appState = JSON.parse(dataRow[0].data);
-  } catch {
-    return res.status(500).json({ error: "Corrupted state data" });
-  }
-
-  const tripExists = (appState.trips || []).some((t) => t.id === tripId);
-  if (!tripExists) return res.status(404).json({ error: "Trip not found" });
-
-  // Each trip can have one read token and one edit token — look up by user + tripId + mode.
-  const existing = await sql`
-    SELECT token FROM share_tokens
-    WHERE user_id = ${user.id} AND trip_id = ${tripId} AND mode = ${mode}
-  `;
+  // Return existing token if one already exists for this user + trip + mode
+  const existing = await sql`SELECT token FROM share_tokens WHERE user_id = ${user.id} AND trip_id = ${tripId} AND mode = ${mode}`;
   if (existing.length) return res.status(200).json({ token: existing[0].token, mode });
 
   const token = randomToken();
-  await sql`
-    INSERT INTO share_tokens (token, user_id, trip_id, mode)
-    VALUES (${token}, ${user.id}, ${tripId}, ${mode})
-  `;
+  await sql`INSERT INTO share_tokens (token, user_id, trip_id, mode) VALUES (${token}, ${user.id}, ${tripId}, ${mode})`;
   return res.status(201).json({ token, mode });
 }

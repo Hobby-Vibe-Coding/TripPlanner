@@ -18,6 +18,8 @@ const daysUntil     = d     => window.daysUntil(d);
 const fmtBookingTime = v    => window.fmtBookingTime(v);
 const tripDuration  = t     => window.tripDuration(t);
 const showLoginModal = t    => window.showLoginModal(t);
+const isEditing   = () => window.isEditing();
+const isShareMode = () => window.isShareMode();
 
 
 // -------- OVERVIEW TAB --------

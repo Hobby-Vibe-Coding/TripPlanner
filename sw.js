@@ -33,17 +33,26 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // For the app shell, serve from cache then revalidate in the background.
+  // For the app shell: serve from cache immediately, revalidate in the background.
   if (e.request.mode === "navigate" || OFFLINE_URLS.includes(url.pathname)) {
     e.respondWith(
       caches.match(e.request).then((cached) => {
-        const networkFetch = fetch(e.request).then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE).then((c) => c.put(e.request, clone));
-          }
-          return res;
-        });
+        // Background revalidation — always silent on failure so it never
+        // causes an unhandled rejection when the dev server is starting up.
+        const networkFetch = fetch(e.request)
+          .then((res) => {
+            if (res.ok) {
+              const clone = res.clone();
+              caches.open(CACHE).then((c) => c.put(e.request, clone));
+            }
+            return res;
+          })
+          .catch(() => {
+            // Network unavailable — already serving from cache, nothing to do.
+          });
+
+        // Serve the cached version immediately if available; otherwise wait
+        // for the network (first load with empty cache).
         return cached || networkFetch;
       })
     );

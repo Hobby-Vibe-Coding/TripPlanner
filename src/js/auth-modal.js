@@ -3,7 +3,8 @@ import { state, route, currentUser, pastYearFilter, simplifyDebts, travEditMode,
 import { updateHeaderUI, clearToken } from './auth.js';
 import { setToken, getToken } from './utils.js';
 
-const render = () => window.render();
+const render      = () => window.render();
+const isLoggedIn  = () => window.isLoggedIn();
 
 // -------- AUTH MODAL --------
 function showLoginModal(defaultTab = "login") {

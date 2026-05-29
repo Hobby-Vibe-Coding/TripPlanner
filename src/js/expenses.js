@@ -274,13 +274,13 @@ function renderExpenses(t, printMode) {
           </div>
           <div style="display:flex;align-items:center;gap:4px;">
             <span style="color:var(--ink-soft);margin-right:4px;">Page ${safePage+1} of ${totalPages}</span>
-            <button class="btn sm" onclick="setExpensePage(${safePage-1})" ${safePage===0?'disabled':''} style="min-width:32px;">‹</button>
+            <button class="btn sm" onclick="setExpensePage(${safePage-1})" ${safePage===0?'disabled':''} style="min-width:32px;padding:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
             ${Array.from({length:totalPages},(_,k)=>k).filter(k=>Math.abs(k-safePage)<=2||k===0||k===totalPages-1).reduce((acc,k,idx,arr)=>{
               if(idx>0&&k-arr[idx-1]>1) acc.push('<span style="color:var(--ink-soft);padding:0 2px;">…</span>');
               acc.push(`<button class="btn sm ${k===safePage?'primary':''}" onclick="setExpensePage(${k})" style="min-width:32px;">${k+1}</button>`);
               return acc;
             },[]).join('')}
-            <button class="btn sm" onclick="setExpensePage(${safePage+1})" ${safePage===totalPages-1?'disabled':''} style="min-width:32px;">›</button>
+            <button class="btn sm" onclick="setExpensePage(${safePage+1})" ${safePage===totalPages-1?'disabled':''} style="min-width:32px;padding:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
           </div>
         </div>` : ''}
 
