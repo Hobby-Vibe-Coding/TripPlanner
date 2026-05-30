@@ -1,4 +1,4 @@
-import { getDb, withTransaction } from "./_db.js";
+import { getDb } from "./_db.js";
 import { insertTripRows } from "./data.js";
 import jwt from "jsonwebtoken";
 
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
         const { trip } = p;
         if (!trip?.id) return res.status(400).json({ error: "trip.id required" });
         const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM trips WHERE user_id = ${user.id}`;
-        await withTransaction(async (tx) => { await insertTripRows(tx, user.id, trip, c); });
+        await insertTripRows(sql, user.id, trip, c);
         break;
       }
 
@@ -163,14 +163,12 @@ export default async function handler(req, res) {
       case "updateDaySlots": {
         const { tripId, dayId, slots } = p;
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
-        await withTransaction(async (tx) => {
-          await tx`DELETE FROM itinerary_slots WHERE day_id = ${dayId}`;
-          for (let si = 0; si < (slots || []).length; si++) {
-            const s = slots[si];
-            await tx`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
-              VALUES (${dayId}, ${si}, ${s.time || ''}, ${s.activity || ''}, ${s.address || ''}, ${s.span ?? 1}, ${s.reservationId ?? null})`;
-          }
-        });
+        await sql`DELETE FROM itinerary_slots WHERE day_id = ${dayId}`;
+        for (let si = 0; si < (slots || []).length; si++) {
+          const s = slots[si];
+          await sql`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
+            VALUES (${dayId}, ${si}, ${s.time || ''}, ${s.activity || ''}, ${s.address || ''}, ${s.span ?? 1}, ${s.reservationId ?? null})`;
+        }
         break;
       }
 
@@ -178,17 +176,15 @@ export default async function handler(req, res) {
         const { tripId, timeSlots, days } = p;
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
         await sql`UPDATE trips SET time_slots = ${JSON.stringify(timeSlots || [])} WHERE id = ${tripId}`;
-        await withTransaction(async (tx) => {
-          for (const day of (days || [])) {
-            await tx`UPDATE itinerary_days SET theme = ${day.theme || ''} WHERE id = ${day.id}`;
-            await tx`DELETE FROM itinerary_slots WHERE day_id = ${day.id}`;
-            for (let si = 0; si < (day.slots || []).length; si++) {
-              const s = day.slots[si];
-              await tx`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
-                VALUES (${day.id}, ${si}, ${s.time || ''}, ${s.activity || ''}, ${s.address || ''}, ${s.span ?? 1}, ${s.reservationId ?? null})`;
-            }
+        for (const day of (days || [])) {
+          await sql`UPDATE itinerary_days SET theme = ${day.theme || ''} WHERE id = ${day.id}`;
+          await sql`DELETE FROM itinerary_slots WHERE day_id = ${day.id}`;
+          for (let si = 0; si < (day.slots || []).length; si++) {
+            const s = day.slots[si];
+            await sql`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
+              VALUES (${day.id}, ${si}, ${s.time || ''}, ${s.activity || ''}, ${s.address || ''}, ${s.span ?? 1}, ${s.reservationId ?? null})`;
           }
-        });
+        }
         break;
       }
 
@@ -197,18 +193,16 @@ export default async function handler(req, res) {
         const { tripId, expense } = p;
         if (!expense?.id) return res.status(400).json({ error: "expense.id required" });
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
-        await withTransaction(async (tx) => {
-          const [{ c }] = await tx`SELECT COUNT(*)::int AS c FROM expenses WHERE trip_id = ${tripId}`;
-          await tx`INSERT INTO expenses (id, trip_id, name, category, cost, expense_date, note, split_method, split_details, exp_order)
-            VALUES (${expense.id}, ${tripId}, ${expense.name || ''}, ${expense.category || 'Misc'},
-                    ${expense.cost ?? 0}, ${expense.date || ''}, ${expense.note || ''},
-                    ${expense.splitMethod || 'equal'}, ${JSON.stringify(expense.splitDetails || {})}, ${c})`;
-          const parts = buildPartsMap(expense.paidBy, expense.splitAmong, expense.settledBy);
-          for (const [name, f] of parts) {
-            await tx`INSERT INTO expense_participants (expense_id, name, is_payer, is_splitter, is_settled)
-              VALUES (${expense.id}, ${name}, ${f.p}, ${f.s}, ${f.d}) ON CONFLICT DO NOTHING`;
-          }
-        });
+        const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM expenses WHERE trip_id = ${tripId}`;
+        await sql`INSERT INTO expenses (id, trip_id, name, category, cost, expense_date, note, split_method, split_details, exp_order)
+          VALUES (${expense.id}, ${tripId}, ${expense.name || ''}, ${expense.category || 'Misc'},
+                  ${expense.cost ?? 0}, ${expense.date || ''}, ${expense.note || ''},
+                  ${expense.splitMethod || 'equal'}, ${JSON.stringify(expense.splitDetails || {})}, ${c})`;
+        const parts0 = buildPartsMap(expense.paidBy, expense.splitAmong, expense.settledBy);
+        for (const [name, f] of parts0) {
+          await sql`INSERT INTO expense_participants (expense_id, name, is_payer, is_splitter, is_settled)
+            VALUES (${expense.id}, ${name}, ${f.p}, ${f.s}, ${f.d}) ON CONFLICT DO NOTHING`;
+        }
         break;
       }
 
@@ -234,26 +228,24 @@ export default async function handler(req, res) {
 
       case "syncExpenseParticipants": {
         const { expenseId, paidBy, splitAmong, settledBy, splitMethod, splitDetails } = p;
-        await withTransaction(async (tx) => {
-          if (splitMethod !== undefined || splitDetails !== undefined) {
-            await tx`UPDATE expenses SET split_method = ${splitMethod || 'equal'}, split_details = ${JSON.stringify(splitDetails || {})} WHERE id = ${expenseId}`;
-          }
-          const parts = buildPartsMap(paidBy, splitAmong, settledBy);
-          for (const [name, f] of parts) {
-            await tx`INSERT INTO expense_participants (expense_id, name, is_payer, is_splitter, is_settled)
-              VALUES (${expenseId}, ${name}, ${f.p}, ${f.s}, ${f.d})
-              ON CONFLICT (expense_id, name) DO UPDATE SET
-                is_payer    = EXCLUDED.is_payer,
-                is_splitter = EXCLUDED.is_splitter,
-                is_settled  = EXCLUDED.is_settled`;
-          }
-          const names = [...parts.keys()];
-          if (names.length > 0) {
-            await tx`DELETE FROM expense_participants WHERE expense_id = ${expenseId} AND name != ALL(${names}::text[])`;
-          } else {
-            await tx`DELETE FROM expense_participants WHERE expense_id = ${expenseId}`;
-          }
-        });
+        if (splitMethod !== undefined || splitDetails !== undefined) {
+          await sql`UPDATE expenses SET split_method = ${splitMethod || 'equal'}, split_details = ${JSON.stringify(splitDetails || {})} WHERE id = ${expenseId}`;
+        }
+        const parts = buildPartsMap(paidBy, splitAmong, settledBy);
+        for (const [name, f] of parts) {
+          await sql`INSERT INTO expense_participants (expense_id, name, is_payer, is_splitter, is_settled)
+            VALUES (${expenseId}, ${name}, ${f.p}, ${f.s}, ${f.d})
+            ON CONFLICT (expense_id, name) DO UPDATE SET
+              is_payer    = EXCLUDED.is_payer,
+              is_splitter = EXCLUDED.is_splitter,
+              is_settled  = EXCLUDED.is_settled`;
+        }
+        const names = [...parts.keys()];
+        if (names.length > 0) {
+          await sql`DELETE FROM expense_participants WHERE expense_id = ${expenseId} AND name != ALL(${names}::text[])`;
+        } else {
+          await sql`DELETE FROM expense_participants WHERE expense_id = ${expenseId}`;
+        }
         break;
       }
 
@@ -283,19 +275,17 @@ export default async function handler(req, res) {
       case "syncPackCategories": {
         const { tripId, categories } = p;
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
-        await withTransaction(async (tx) => {
-          await tx`DELETE FROM packing_categories WHERE trip_id = ${tripId}`;
-          for (let ci = 0; ci < (categories || []).length; ci++) {
-            const cat = categories[ci];
-            if (!cat.id) continue;
-            await tx`INSERT INTO packing_categories (id, trip_id, name, pos) VALUES (${cat.id}, ${tripId}, ${cat.name || ''}, ${ci})`;
-            for (let ii = 0; ii < (cat.items || []).length; ii++) {
-              const item = cat.items[ii];
-              if (!item.id) continue;
-              await tx`INSERT INTO packing_items (id, category_id, name, packed, pos) VALUES (${item.id}, ${cat.id}, ${item.name || ''}, ${item.packed || false}, ${ii})`;
-            }
+        await sql`DELETE FROM packing_categories WHERE trip_id = ${tripId}`;
+        for (let ci = 0; ci < (categories || []).length; ci++) {
+          const cat = categories[ci];
+          if (!cat.id) continue;
+          await sql`INSERT INTO packing_categories (id, trip_id, name, pos) VALUES (${cat.id}, ${tripId}, ${cat.name || ''}, ${ci})`;
+          for (let ii = 0; ii < (cat.items || []).length; ii++) {
+            const item = cat.items[ii];
+            if (!item.id) continue;
+            await sql`INSERT INTO packing_items (id, category_id, name, packed, pos) VALUES (${item.id}, ${cat.id}, ${item.name || ''}, ${item.packed || false}, ${ii})`;
           }
-        });
+        }
         break;
       }
 
