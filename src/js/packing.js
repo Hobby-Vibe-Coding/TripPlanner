@@ -71,7 +71,7 @@ function renderPacking(t) {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
-              <div class="pack-bar"><div class="pack-bar-fill" style="width:${total ? (done/total*100) : 0}%"></div></div>
+              <div class="pack-bar"><div class="pack-bar-fill" style="--pct:${total ? (done/total) : 0}"></div></div>
               <div class="pack-items">
                 ${c.items.map((it, ii) => `
                   <div class="pack-item ${it.packed?"checked":""}" data-ii="${ii}">
@@ -354,7 +354,7 @@ function togglePack(ci, ii) {
     const prog = cat?.querySelector(".pack-cat-progress");
     if (prog) prog.textContent = `${done}/${total}`;
     const fill = cat?.querySelector(".pack-bar-fill");
-    if (fill) fill.style.width = `${total ? (done / total * 100) : 0}%`;
+    if (fill) fill.style.setProperty('--pct', total ? (done / total) : 0);
     updateTripHeaderStats(t);
     return;
   }

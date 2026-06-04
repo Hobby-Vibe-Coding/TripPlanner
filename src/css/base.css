@@ -39,14 +39,21 @@ html, body { margin: 0; padding: 0; height: 100%; }
 body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+  position: relative;
+}
+/* Fixed pseudo-element avoids scroll-triggered repaints from background-attachment:fixed */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
   background:
     radial-gradient(1200px 700px at 0% 0%, var(--bg-grad-1) 0%, transparent 60%),
     radial-gradient(1100px 700px at 100% 0%, var(--bg-grad-3) 0%, transparent 60%),
     linear-gradient(180deg, var(--bg-grad-2) 0%, #ffffff 70%);
-  background-attachment: fixed;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  line-height: 1.5;
 }
 h1, h2, h3, h4 { margin: 0; font-weight: 700; letter-spacing: -0.01em; }
 button { font-family: inherit; cursor: pointer; }
@@ -59,9 +66,7 @@ input, textarea, select { font-family: inherit; }
   position: sticky; top: 0; z-index: 50;
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 28px;
-  background: rgba(255,255,255,0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(255,255,255,0.96);
   border-bottom: 1px solid var(--line);
 }
 .brand {
@@ -89,7 +94,7 @@ input, textarea, select { font-family: inherit; }
   width: 38px; height: 38px; border-radius: 10px;
   background: var(--surface-solid); border: 1px solid var(--line);
   display: grid; place-items: center; color: var(--ink);
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .icon-btn:hover { background: var(--primary-soft); border-color: var(--line-strong); }
 .icon-btn svg { width: 18px; height: 18px; }
@@ -99,7 +104,7 @@ input, textarea, select { font-family: inherit; }
   padding: 0 12px 0 6px; height: 38px; border-radius: 10px;
   background: var(--surface-solid); border: 1px solid var(--line);
   color: var(--ink); font: inherit; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; white-space: nowrap;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; white-space: nowrap;
 }
 .user-chip:hover { background: var(--primary-soft); border-color: var(--line-strong); }
 .user-avatar {
@@ -134,8 +139,9 @@ input, textarea, select { font-family: inherit; }
 .hero-text p { color: var(--ink-soft); margin: 0; font-size: 16px; }
 .hero-emoji {
   font-size: 78px; line-height: 1;
-  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.12));
+  text-shadow: 0 6px 16px rgba(0,0,0,0.12);
   animation: bob 5s ease-in-out infinite;
+  will-change: transform;
 }
 @keyframes bob {
   0%, 100% { transform: translateY(0) rotate(-3deg); }
@@ -162,16 +168,14 @@ input, textarea, select { font-family: inherit; }
   grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
 }
 .trip-card {
-  background: var(--surface);
+  background: var(--surface-solid);
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 18px;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: transform 0.2s, border-color 0.2s;
   position: relative;
   overflow: hidden;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 .trip-card:hover {
   transform: translateY(-3px);
@@ -217,7 +221,7 @@ input, textarea, select { font-family: inherit; }
   align-items: center; justify-content: center;
   min-height: 270px; cursor: pointer;
   color: var(--primary); font-weight: 600;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: transform 0.2s, border-color 0.2s;
 }
 .trip-card.new:hover {
   border-color: var(--primary); background: var(--primary-soft);
@@ -240,9 +244,8 @@ input, textarea, select { font-family: inherit; }
   border-radius: 22px;
   border: 1px solid var(--line);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.9) 100%),
+    linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.98) 100%),
     repeating-linear-gradient(135deg, rgba(255,255,255,0.35) 0 12px, rgba(255,255,255,0.15) 12px 24px);
-  backdrop-filter: blur(10px);
 }
 .past-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -281,7 +284,7 @@ input, textarea, select { font-family: inherit; }
   cursor: pointer;
   white-space: nowrap;
   scroll-snap-align: center;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .year-pill-mini.active {
   border-style: solid;
@@ -308,7 +311,7 @@ input, textarea, select { font-family: inherit; }
   display: inline-flex; flex-direction: column; align-items: center; gap: 8px;
   cursor: pointer; user-select: none;
   padding: 2px 4px; border-radius: 12px;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   scroll-snap-align: center;
   scroll-snap-stop: always;
   z-index: 1;
@@ -412,7 +415,7 @@ input, textarea, select { font-family: inherit; }
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   transform: translateY(0);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  transition: transform 0.18s ease, opacity 0.18s ease;
   position: relative; overflow: hidden;
 }
 .postcard:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
@@ -443,7 +446,7 @@ input, textarea, select { font-family: inherit; }
   padding: 10px 12px;
   opacity: 0;
   transform: translateY(6px);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  transition: transform 0.18s ease, opacity 0.18s ease;
   pointer-events: none;
 }
 .postcard:hover .postcard-reveal,
@@ -482,9 +485,8 @@ input, textarea, select { font-family: inherit; }
 /* Empty state */
 .empty-state {
   padding: 60px 28px; text-align: center;
-  background: var(--surface);
+  background: var(--surface-solid);
   border-radius: 22px; border: 1px solid var(--line);
-  backdrop-filter: blur(8px);
 }
 .empty-state .e-emoji { font-size: 64px; margin-bottom: 12px; }
 .empty-state h3 { font-size: 22px; margin-bottom: 6px; }
@@ -498,7 +500,7 @@ input, textarea, select { font-family: inherit; }
   padding: 10px 16px; border-radius: 11px;
   font-weight: 600; font-size: 14px;
   border: 1px solid transparent; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; text-decoration: none;
   color: var(--ink); background: var(--surface-solid);
   border-color: var(--line);
 }

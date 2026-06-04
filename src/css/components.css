@@ -2,13 +2,12 @@
    TRIP DETAIL
    =========================================================== */
 .trip-header {
-  background: var(--surface);
+  background: var(--surface-solid);
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 24px 28px;
   margin-bottom: 22px;
   position: relative; overflow: hidden;
-  backdrop-filter: blur(8px);
 }
 .trip-header::before {
   content: ""; position: absolute; inset: 0;
@@ -110,7 +109,7 @@
   color: var(--ink-soft); font-weight: 600; font-size: 14px;
   white-space: nowrap;
   display: flex; align-items: center; gap: 7px;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 .tab:hover { color: var(--ink); background: var(--surface-2); }
 .tab.active {
@@ -120,11 +119,10 @@
 .tab svg { width: 15px; height: 15px; }
 
 .panel {
-  background: var(--surface);
+  background: var(--surface-solid);
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 22px;
-  backdrop-filter: blur(8px);
 }
 .panel-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -228,7 +226,10 @@ table.t tfoot td {
 }
 .pack-bar-fill {
   height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent));
-  border-radius: 999px; transition: width 0.3s;
+  border-radius: 999px;
+  width: 100%; transform-origin: left;
+  transform: scaleX(var(--pct, 0));
+  transition: transform 0.3s;
 }
 .pack-items { display: flex; flex-direction: column; gap: 3px; }
 .pack-item {
@@ -414,7 +415,7 @@ table.t tfoot td {
   background: var(--surface-solid); border: 1px solid var(--line);
   border-radius: 5px; padding: 2px 5px; font-size: 10px;
   cursor: pointer; color: var(--ink-soft); line-height: 1.4;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .slot-res-link-btn.linked { display: inline-flex; color: var(--primary); border-color: var(--primary); }
 .itin-cell.slot.filled:hover .slot-res-link-btn { display: inline-flex; }
@@ -674,7 +675,8 @@ table.t tfoot td {
   cursor: pointer; z-index: 40;
   display: grid; place-items: center;
   font-size: 22px;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: transform 0.2s, background 0.2s;
+  will-change: transform;
 }
 .fab:hover { transform: scale(1.06); background: var(--primary-dark); }
 .fab svg { width: 22px; height: 22px; }
@@ -730,7 +732,7 @@ table.t tfoot td {
 }
 .theme-swatch {
   border: 2px solid transparent; border-radius: 13px;
-  padding: 4px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+  padding: 4px; cursor: pointer; transition: border-color 0.15s, transform 0.15s;
   background: white;
 }
 .theme-swatch.sel { border-color: var(--ink); }
@@ -828,7 +830,7 @@ table.t tfoot td {
   padding: 3px 9px; border-radius: 999px;
   font-size: 12px; font-weight: 600;
   cursor: grab; user-select: none;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; margin: 2px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s; margin: 2px;
 }
 .trav-draggable:active { cursor: grabbing; opacity: 0.6; }
 .trav-draggable.is-me { background: var(--primary); color: white; }
@@ -950,7 +952,7 @@ table.t tfoot td {
   padding: 10px 6px;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   color: var(--ink);
 }
 .split-method:hover { background: var(--primary-soft); border-color: var(--primary); }
@@ -987,7 +989,7 @@ table.t tfoot td {
   border: 1px solid var(--line);
   border-radius: 999px; padding: 5px 11px;
   font-size: 13px; cursor: pointer; user-select: none;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .split-chip:hover { border-color: var(--primary); }
 .split-chip.on {
@@ -1001,7 +1003,7 @@ table.t tfoot td {
   width: 14px; height: 14px; border-radius: 50%;
   border: 2px solid var(--line-strong); background: white;
   display: grid; place-items: center;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .split-chip.on .dot {
   background: var(--primary); border-color: var(--primary);
@@ -1068,7 +1070,7 @@ table.t tfoot td {
   font-size: 12px; font-weight: 600;
   color: var(--ink);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   font-variant-numeric: tabular-nums;
 }
 .split-cell-btn:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
@@ -1134,7 +1136,7 @@ table.t tfoot td {
   padding: 4px 12px; border-radius: 999px; font-size: 12px;
   font-weight: 600; cursor: pointer; border: 1px solid var(--line);
   background: var(--surface-2); color: var(--ink-soft);
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; user-select: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s; user-select: none;
 }
 .settle-toggle:hover { border-color: var(--primary); }
 .settle-toggle.settled {
@@ -1179,7 +1181,7 @@ table.t tfoot td {
   position: relative; border-radius: 10px; overflow: hidden;
   aspect-ratio: 1; cursor: pointer; background: var(--surface-2);
   border: 1px solid var(--line);
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s;
 }
 .photo-thumb:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.12); }
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--surface-2); min-height: 130px; }
@@ -1291,15 +1293,18 @@ table.t tfoot td {
 /* ====================================================
    WEATHER WIDGET
    ==================================================== */
-.overview-weather { order: -1; }
+.overview-weather { order: -1; min-width: 0; }
 @media (max-width: 640px) {
   .overview-weather { grid-column: 1 / -1; }
 }
 .weather-strip {
-  display: flex; gap: 6px; overflow-x: auto; padding: 10px 0 4px;
-  scrollbar-width: none;
+  display: flex; gap: 6px; overflow-x: auto; padding: 10px 0 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
-.weather-strip::-webkit-scrollbar { display: none; }
+.weather-strip::-webkit-scrollbar { height: 4px; }
+.weather-strip::-webkit-scrollbar-track { background: transparent; }
+.weather-strip::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
 .weather-day {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   min-width: 54px; background: var(--surface-2); border-radius: 10px;
@@ -1323,9 +1328,9 @@ table.t tfoot td {
   border: 1px solid var(--primary-border, var(--line));
   border-radius: 14px; padding: 14px 18px; margin-bottom: 20px;
   display: flex; align-items: center; gap: 14px; cursor: pointer;
-  transition: box-shadow .15s;
+  transition: transform .15s;
 }
-.on-this-day-banner:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.on-this-day-banner:hover { transform: translateY(-1px); }
 .on-this-day-content { flex: 1; min-width: 0; }
 .on-this-day-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--primary, #e07b39); margin-bottom: 2px; }
 .on-this-day-title { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1335,9 +1340,9 @@ table.t tfoot td {
 .on-this-day-chip {
   flex-shrink: 0; background: var(--surface); border: 1px solid var(--line);
   border-radius: 10px; padding: 8px 12px; cursor: pointer;
-  transition: box-shadow .15s; min-width: 140px;
+  transition: border-color .15s; min-width: 140px;
 }
-.on-this-day-chip:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+.on-this-day-chip:hover { border-color: var(--primary); }
 
 /* ====================================================
    QR CODE (within share modal)
