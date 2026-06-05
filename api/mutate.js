@@ -1,5 +1,5 @@
 import { getDb } from "./_db.js";
-import { insertTripRows } from "./data.js";
+import { insertTripRows, upsertSlots } from "./data.js";
 import jwt from "jsonwebtoken";
 
 export const config = {
@@ -162,16 +162,8 @@ export default async function handler(req, res) {
 
       case "updateDaySlots": {
         const { tripId, dayId, events, slots } = p;
-        const data = events || slots || [];
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
-        await sql`DELETE FROM itinerary_slots WHERE day_id = ${dayId}`;
-        for (let i = 0; i < data.length; i++) {
-          const ev = data[i];
-          if (!ev.activity?.trim()) continue;
-          const slotIndex = ev.startSlot ?? ev.slot_index ?? i;
-          await sql`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
-            VALUES (${dayId}, ${slotIndex}, ${ev.time || ''}, ${ev.activity || ''}, ${ev.address || ''}, ${ev.span ?? 1}, ${ev.reservationId ?? null})`;
-        }
+        await upsertSlots(sql, dayId, events || slots || []);
         break;
       }
 
@@ -180,28 +172,20 @@ export default async function handler(req, res) {
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
         await sql`UPDATE trips SET time_slots = ${JSON.stringify(timeSlots || [])} WHERE id = ${tripId}`;
         const dayList = days || [];
-        // Delete days that no longer exist (trip shortened or days removed)
+        // Upsert each day, then sync its slots
+        for (let di = 0; di < dayList.length; di++) {
+          const day = dayList[di];
+          await sql`INSERT INTO itinerary_days (id, trip_id, day_index, theme)
+                    VALUES (${day.id}, ${tripId}, ${di}, ${day.theme || ''})
+                    ON CONFLICT (id) DO UPDATE SET day_index = EXCLUDED.day_index, theme = EXCLUDED.theme`;
+          await upsertSlots(sql, day.id, day.events || day.slots || []);
+        }
+        // Remove days no longer in the list (CASCADE removes their slots)
         if (dayList.length > 0) {
           const keepIds = dayList.map(d => d.id);
           await sql`DELETE FROM itinerary_days WHERE trip_id = ${tripId} AND id != ALL(${keepIds}::text[])`;
         } else {
           await sql`DELETE FROM itinerary_days WHERE trip_id = ${tripId}`;
-        }
-        for (let di = 0; di < dayList.length; di++) {
-          const day = dayList[di];
-          // Upsert the day row so new days (from trip extension) are created
-          await sql`INSERT INTO itinerary_days (id, trip_id, day_index, theme)
-                    VALUES (${day.id}, ${tripId}, ${di}, ${day.theme || ''})
-                    ON CONFLICT (id) DO UPDATE SET theme = EXCLUDED.theme, day_index = EXCLUDED.day_index`;
-          await sql`DELETE FROM itinerary_slots WHERE day_id = ${day.id}`;
-          const evts = day.events || day.slots || [];
-          for (let i = 0; i < evts.length; i++) {
-            const ev = evts[i];
-            if (!ev.activity?.trim()) continue;
-            const slotIndex = ev.startSlot ?? ev.slot_index ?? i;
-            await sql`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
-              VALUES (${day.id}, ${slotIndex}, ${ev.time || ''}, ${ev.activity || ''}, ${ev.address || ''}, ${ev.span ?? 1}, ${ev.reservationId ?? null})`;
-          }
         }
         break;
       }
@@ -293,16 +277,31 @@ export default async function handler(req, res) {
       case "syncPackCategories": {
         const { tripId, categories } = p;
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
-        await sql`DELETE FROM packing_categories WHERE trip_id = ${tripId}`;
+        const catIds = (categories || []).filter(c => c.id).map(c => c.id);
         for (let ci = 0; ci < (categories || []).length; ci++) {
           const cat = categories[ci];
           if (!cat.id) continue;
-          await sql`INSERT INTO packing_categories (id, trip_id, name, pos) VALUES (${cat.id}, ${tripId}, ${cat.name || ''}, ${ci})`;
+          await sql`INSERT INTO packing_categories (id, trip_id, name, pos) VALUES (${cat.id}, ${tripId}, ${cat.name || ''}, ${ci})
+                    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, pos = EXCLUDED.pos`;
+          const itemIds = (cat.items || []).filter(i => i.id).map(i => i.id);
           for (let ii = 0; ii < (cat.items || []).length; ii++) {
             const item = cat.items[ii];
             if (!item.id) continue;
-            await sql`INSERT INTO packing_items (id, category_id, name, packed, pos) VALUES (${item.id}, ${cat.id}, ${item.name || ''}, ${item.packed || false}, ${ii})`;
+            await sql`INSERT INTO packing_items (id, category_id, name, packed, pos) VALUES (${item.id}, ${cat.id}, ${item.name || ''}, ${item.packed || false}, ${ii})
+                      ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, packed = EXCLUDED.packed, pos = EXCLUDED.pos`;
           }
+          // Remove items no longer in this category
+          if (itemIds.length > 0) {
+            await sql`DELETE FROM packing_items WHERE category_id = ${cat.id} AND id != ALL(${itemIds}::text[])`;
+          } else {
+            await sql`DELETE FROM packing_items WHERE category_id = ${cat.id}`;
+          }
+        }
+        // Remove categories no longer in the list (CASCADE removes their items)
+        if (catIds.length > 0) {
+          await sql`DELETE FROM packing_categories WHERE trip_id = ${tripId} AND id != ALL(${catIds}::text[])`;
+        } else {
+          await sql`DELETE FROM packing_categories WHERE trip_id = ${tripId}`;
         }
         break;
       }

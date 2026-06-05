@@ -247,6 +247,241 @@ export async function insertTripRows(sql, userId, trip, order) {
   }
 }
 
+// ── Upsert slots for one day — no full-table delete ───────────────────────────
+// Events with numeric string IDs already exist in the DB → UPDATE.
+// Events with uid()-style IDs are new → INSERT.
+// Slots in the DB that are not in the incoming list were removed → DELETE by ID.
+export async function upsertSlots(sql, dayId, events) {
+  const incoming = (events || []).filter(ev => ev.activity?.trim());
+
+  // Collect DB-assigned IDs (SERIAL integers stored as strings) we are keeping
+  const keptDbIds = incoming
+    .filter(ev => /^\d+$/.test(String(ev.id ?? '')))
+    .map(ev => Number(ev.id));
+
+  // Remove only slots that were deleted (not in the incoming list)
+  if (keptDbIds.length > 0) {
+    await sql`DELETE FROM itinerary_slots WHERE day_id = ${dayId} AND id != ALL(${keptDbIds}::bigint[])`;
+  } else {
+    await sql`DELETE FROM itinerary_slots WHERE day_id = ${dayId}`;
+  }
+
+  for (const ev of incoming) {
+    const slotIndex = ev.startSlot ?? ev.slot_index ?? 0;
+    if (/^\d+$/.test(String(ev.id ?? ''))) {
+      // Existing row — UPDATE in place
+      await sql`UPDATE itinerary_slots
+        SET slot_index = ${slotIndex}, time_label = ${ev.time || ''},
+            activity = ${ev.activity}, address = ${ev.address || ''},
+            span = ${ev.span ?? 1}, reservation_id = ${ev.reservationId ?? null}
+        WHERE id = ${Number(ev.id)} AND day_id = ${dayId}`;
+    } else {
+      // New event — INSERT (DB assigns the serial id)
+      await sql`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
+        VALUES (${dayId}, ${slotIndex}, ${ev.time || ''}, ${ev.activity}, ${ev.address || ''}, ${ev.span ?? 1}, ${ev.reservationId ?? null})`;
+    }
+  }
+}
+
+// ── Update a full trip in-place without delete-reinsert ───────────────────────
+export async function updateTripFull(sql, tripId, userId, trip) {
+  // 1. Update trip row fields
+  await sql`UPDATE trips SET
+    title               = ${trip.title || ''},
+    destination         = ${trip.destination || ''},
+    dest_lat            = ${trip.destinationCoords?.lat ?? null},
+    dest_lng            = ${trip.destinationCoords?.lng ?? null},
+    emoji               = ${trip.emoji || '✈️'},
+    start_date          = ${trip.startDate || ''},
+    end_date            = ${trip.endDate || ''},
+    budget              = ${trip.budget ?? null},
+    timezone            = ${trip.timezone || ''},
+    memory_line         = ${trip.memoryLine || ''},
+    my_traveler         = ${trip.myTraveler ?? null},
+    time_slots          = ${JSON.stringify(trip.timeSlots || [])},
+    traveler_schedule   = ${JSON.stringify(trip.travelerSchedule || {})},
+    drive_folder_id     = ${trip.driveFolder?.folderId ?? null},
+    drive_thumbnail_id  = ${trip.driveFolder?.thumbnailId ?? null},
+    drive_thumbnail_url = ${trip.driveFolder?.thumbnailUrl ?? null}
+  WHERE id = ${tripId} AND user_id = ${userId}`;
+
+  // 2. Sync travelers
+  const tNames = trip.travelers || [];
+  for (let i = 0; i < tNames.length; i++) {
+    await sql`INSERT INTO trip_travelers (trip_id, name, pos) VALUES (${tripId}, ${tNames[i]}, ${i})
+              ON CONFLICT (trip_id, name) DO UPDATE SET pos = EXCLUDED.pos`;
+  }
+  if (tNames.length > 0) {
+    await sql`DELETE FROM trip_travelers WHERE trip_id = ${tripId} AND name != ALL(${tNames}::text[])`;
+  } else {
+    await sql`DELETE FROM trip_travelers WHERE trip_id = ${tripId}`;
+  }
+
+  // 3. Sync groups
+  const groupIds = (trip.groups || []).filter(g => g.id).map(g => g.id);
+  for (let gi = 0; gi < (trip.groups || []).length; gi++) {
+    const g = trip.groups[gi];
+    if (!g.id) continue;
+    await sql`INSERT INTO trip_groups (id, trip_id, name, pos) VALUES (${g.id}, ${tripId}, ${g.name || ''}, ${gi})
+              ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, pos = EXCLUDED.pos`;
+    const mNames = g.members || [];
+    for (let mi = 0; mi < mNames.length; mi++) {
+      await sql`INSERT INTO trip_group_members (group_id, name, pos) VALUES (${g.id}, ${mNames[mi]}, ${mi})
+                ON CONFLICT (group_id, name) DO UPDATE SET pos = EXCLUDED.pos`;
+    }
+    if (mNames.length > 0) {
+      await sql`DELETE FROM trip_group_members WHERE group_id = ${g.id} AND name != ALL(${mNames}::text[])`;
+    } else {
+      await sql`DELETE FROM trip_group_members WHERE group_id = ${g.id}`;
+    }
+  }
+  if (groupIds.length > 0) {
+    await sql`DELETE FROM trip_groups WHERE trip_id = ${tripId} AND id != ALL(${groupIds}::text[])`;
+  } else {
+    await sql`DELETE FROM trip_groups WHERE trip_id = ${tripId}`;
+  }
+
+  // 4. Sync itinerary days + slots (CASCADE removes slots of deleted days)
+  const dayIds = (trip.itinerary || []).filter(d => d.id).map(d => d.id);
+  for (let di = 0; di < (trip.itinerary || []).length; di++) {
+    const day = trip.itinerary[di];
+    if (!day.id) continue;
+    await sql`INSERT INTO itinerary_days (id, trip_id, day_index, theme) VALUES (${day.id}, ${tripId}, ${di}, ${day.theme || ''})
+              ON CONFLICT (id) DO UPDATE SET day_index = EXCLUDED.day_index, theme = EXCLUDED.theme`;
+    await upsertSlots(sql, day.id, day.events || day.slots || []);
+  }
+  if (dayIds.length > 0) {
+    await sql`DELETE FROM itinerary_days WHERE trip_id = ${tripId} AND id != ALL(${dayIds}::text[])`;
+  } else {
+    await sql`DELETE FROM itinerary_days WHERE trip_id = ${tripId}`;
+  }
+
+  // 5. Sync expenses + participants
+  const expIds = (trip.expenses || []).filter(e => e.id).map(e => e.id);
+  for (let ei = 0; ei < (trip.expenses || []).length; ei++) {
+    const e = trip.expenses[ei];
+    if (!e.id) continue;
+    await sql`INSERT INTO expenses (id, trip_id, name, category, cost, expense_date, note, split_method, split_details, exp_order)
+              VALUES (${e.id}, ${tripId}, ${e.name || ''}, ${e.category || ''}, ${e.cost ?? 0}, ${e.date || ''}, ${e.note || ''}, ${e.splitMethod || 'equal'}, ${JSON.stringify(e.splitDetails || {})}, ${ei})
+              ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name, category = EXCLUDED.category, cost = EXCLUDED.cost,
+                expense_date = EXCLUDED.expense_date, note = EXCLUDED.note,
+                split_method = EXCLUDED.split_method, split_details = EXCLUDED.split_details,
+                exp_order = EXCLUDED.exp_order`;
+    const parts = new Map();
+    const flag = (n, f) => { if (!parts.has(n)) parts.set(n, { p: false, s: false, d: false }); parts.get(n)[f] = true; };
+    (e.paidBy    || []).forEach(n => flag(n, 'p'));
+    (e.splitAmong || []).forEach(n => flag(n, 's'));
+    (e.settledBy  || []).forEach(n => flag(n, 'd'));
+    for (const [name, f] of parts) {
+      await sql`INSERT INTO expense_participants (expense_id, name, is_payer, is_splitter, is_settled)
+                VALUES (${e.id}, ${name}, ${f.p}, ${f.s}, ${f.d})
+                ON CONFLICT (expense_id, name) DO UPDATE SET
+                  is_payer = EXCLUDED.is_payer, is_splitter = EXCLUDED.is_splitter, is_settled = EXCLUDED.is_settled`;
+    }
+    const pNames = [...parts.keys()];
+    if (pNames.length > 0) {
+      await sql`DELETE FROM expense_participants WHERE expense_id = ${e.id} AND name != ALL(${pNames}::text[])`;
+    } else {
+      await sql`DELETE FROM expense_participants WHERE expense_id = ${e.id}`;
+    }
+  }
+  if (expIds.length > 0) {
+    await sql`DELETE FROM expenses WHERE trip_id = ${tripId} AND id != ALL(${expIds}::text[])`;
+  } else {
+    await sql`DELETE FROM expenses WHERE trip_id = ${tripId}`;
+  }
+
+  // 6. Sync packing categories + items (CASCADE removes items of deleted categories)
+  const catIds = (trip.packing || []).filter(c => c.id).map(c => c.id);
+  for (let ci = 0; ci < (trip.packing || []).length; ci++) {
+    const cat = trip.packing[ci];
+    if (!cat.id) continue;
+    await sql`INSERT INTO packing_categories (id, trip_id, name, pos) VALUES (${cat.id}, ${tripId}, ${cat.name || ''}, ${ci})
+              ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, pos = EXCLUDED.pos`;
+    const itemIds = (cat.items || []).filter(i => i.id).map(i => i.id);
+    for (let ii = 0; ii < (cat.items || []).length; ii++) {
+      const item = cat.items[ii];
+      if (!item.id) continue;
+      await sql`INSERT INTO packing_items (id, category_id, name, packed, pos) VALUES (${item.id}, ${cat.id}, ${item.name || ''}, ${item.packed || false}, ${ii})
+                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, packed = EXCLUDED.packed, pos = EXCLUDED.pos`;
+    }
+    if (itemIds.length > 0) {
+      await sql`DELETE FROM packing_items WHERE category_id = ${cat.id} AND id != ALL(${itemIds}::text[])`;
+    } else {
+      await sql`DELETE FROM packing_items WHERE category_id = ${cat.id}`;
+    }
+  }
+  if (catIds.length > 0) {
+    await sql`DELETE FROM packing_categories WHERE trip_id = ${tripId} AND id != ALL(${catIds}::text[])`;
+  } else {
+    await sql`DELETE FROM packing_categories WHERE trip_id = ${tripId}`;
+  }
+
+  // 7. Sync reservations
+  const resIds = (trip.reservations || []).filter(r => r.id).map(r => r.id);
+  for (let ri = 0; ri < (trip.reservations || []).length; ri++) {
+    const r = trip.reservations[ri];
+    if (!r.id) continue;
+    await sql`INSERT INTO reservations (id, trip_id, name, status, due_date, conf_num, link, note, res_order)
+              VALUES (${r.id}, ${tripId}, ${r.name || ''}, ${r.status || 'pending'}, ${r.dueDate || ''}, ${r.confNum || ''}, ${r.link || ''}, ${r.note || ''}, ${ri})
+              ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name, status = EXCLUDED.status, due_date = EXCLUDED.due_date,
+                conf_num = EXCLUDED.conf_num, link = EXCLUDED.link, note = EXCLUDED.note, res_order = EXCLUDED.res_order`;
+  }
+  if (resIds.length > 0) {
+    await sql`DELETE FROM reservations WHERE trip_id = ${tripId} AND id != ALL(${resIds}::text[])`;
+  } else {
+    await sql`DELETE FROM reservations WHERE trip_id = ${tripId}`;
+  }
+
+  // 8. Sync notes
+  const noteIds = (trip.notes || []).filter(n => n.id).map(n => n.id);
+  for (let ni = 0; ni < (trip.notes || []).length; ni++) {
+    const n = trip.notes[ni];
+    if (!n.id) continue;
+    await sql`INSERT INTO notes (id, trip_id, note_text, note_order) VALUES (${n.id}, ${tripId}, ${n.text || ''}, ${ni})
+              ON CONFLICT (id) DO UPDATE SET note_text = EXCLUDED.note_text, note_order = EXCLUDED.note_order`;
+  }
+  if (noteIds.length > 0) {
+    await sql`DELETE FROM notes WHERE trip_id = ${tripId} AND id != ALL(${noteIds}::text[])`;
+  } else {
+    await sql`DELETE FROM notes WHERE trip_id = ${tripId}`;
+  }
+
+  // 9. Sync tasks
+  const taskIds = (trip.tasks || []).filter(t => t.id).map(t => t.id);
+  for (let ti = 0; ti < (trip.tasks || []).length; ti++) {
+    const tk = trip.tasks[ti];
+    if (!tk.id) continue;
+    await sql`INSERT INTO trip_tasks (id, trip_id, title, assigned_to, status, due_date, task_order)
+              VALUES (${tk.id}, ${tripId}, ${tk.title || ''}, ${tk.assignedTo || ''}, ${tk.status || 'pending'}, ${tk.dueDate || ''}, ${ti})
+              ON CONFLICT (id) DO UPDATE SET
+                title = EXCLUDED.title, assigned_to = EXCLUDED.assigned_to, status = EXCLUDED.status,
+                due_date = EXCLUDED.due_date, task_order = EXCLUDED.task_order`;
+  }
+  if (taskIds.length > 0) {
+    await sql`DELETE FROM trip_tasks WHERE trip_id = ${tripId} AND id != ALL(${taskIds}::text[])`;
+  } else {
+    await sql`DELETE FROM trip_tasks WHERE trip_id = ${tripId}`;
+  }
+
+  // 10. Sync announcements
+  const annIds = (trip.announcements || []).filter(a => a.id).map(a => a.id);
+  for (let ai = 0; ai < (trip.announcements || []).length; ai++) {
+    const a = trip.announcements[ai];
+    if (!a.id) continue;
+    await sql`INSERT INTO trip_announcements (id, trip_id, ann_text, pinned, ann_order)
+              VALUES (${a.id}, ${tripId}, ${a.text || ''}, ${a.pinned || false}, ${ai})
+              ON CONFLICT (id) DO UPDATE SET ann_text = EXCLUDED.ann_text, pinned = EXCLUDED.pinned, ann_order = EXCLUDED.ann_order`;
+  }
+  if (annIds.length > 0) {
+    await sql`DELETE FROM trip_announcements WHERE trip_id = ${tripId} AND id != ALL(${annIds}::text[])`;
+  } else {
+    await sql`DELETE FROM trip_announcements WHERE trip_id = ${tripId}`;
+  }
+}
+
 // ── API Handler ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

@@ -1,5 +1,5 @@
-import { getDb, withTransaction } from "../_db.js";
-import { loadStateFromDB, insertTripRows } from "../data.js";
+import { getDb } from "../_db.js";
+import { loadStateFromDB, updateTripFull } from "../data.js";
 
 export const config = {
   api: { bodyParser: { sizeLimit: "8mb" } },
@@ -36,16 +36,16 @@ export default async function handler(req, res) {
     if (!trip || typeof trip !== "object") return res.status(400).json({ error: "trip object required" });
     if (trip.id !== tripId) return res.status(403).json({ error: "Trip ID does not match this share token" });
 
-    // Verify trip belongs to the token owner
-    const ownerCheck = await sql`SELECT trip_order FROM trips WHERE id = ${tripId} AND user_id = ${userId}`;
+    // Verify trip still exists
+    const ownerCheck = await sql`SELECT 1 FROM trips WHERE id = ${tripId} AND user_id = ${userId}`;
     if (!ownerCheck.length) return res.status(404).json({ error: "Trip not found" });
-    const currentOrder = ownerCheck[0].trip_order;
 
-    // Delete the trip (CASCADE removes all children) and re-insert with updated data
-    await withTransaction(async (txSql) => {
-      await txSql`DELETE FROM trips WHERE id = ${tripId} AND user_id = ${userId}`;
-      await insertTripRows(txSql, userId, trip, currentOrder);
-    });
+    try {
+      await updateTripFull(sql, tripId, userId, trip);
+    } catch (err) {
+      console.error('[share PUT]', err.message, err.code);
+      return res.status(500).json({ error: 'Save failed', detail: err.message });
+    }
 
     return res.status(200).json({ ok: true });
   }
