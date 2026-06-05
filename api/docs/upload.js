@@ -110,7 +110,7 @@ async function _handler(req, res) {
 
   // Upload to Vercel Blob (server-side only — blob URL never sent to client)
   const blobKey = `docs/${user.id}/${tripId}/${uid()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  const blob = await put(blobKey, fileBuffer, { access: "public", contentType: mimeType });
+  const blob = await put(blobKey, fileBuffer, { access: "private", contentType: mimeType });
 
   const docId = uid();
   await sql`

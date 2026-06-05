@@ -25,8 +25,10 @@ export default async function handler(req, res) {
   `;
   if (!doc) return res.status(403).json({ error: "Forbidden" });
 
-  // Fetch from Vercel Blob server-side and stream to client
-  const upstream = await fetch(doc.blob_url);
+  // Fetch private blob server-side using the store token — blob URL is never exposed to clients
+  const upstream = await fetch(doc.blob_url, {
+    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
+  });
   if (!upstream.ok) return res.status(502).json({ error: "Could not retrieve file" });
 
   const buf = Buffer.from(await upstream.arrayBuffer());
