@@ -110,16 +110,21 @@ export function scrollPastYearIntoView(y) {
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+let _shareSaveTimer = null;
 export function mutate(payload) {
   if (isShareMode() && window._shareToken) {
-    // In share-edit mode fall back to the share save path
-    const trip = currentTrip();
-    if (!trip) return;
-    fetch(`/api/share/${window._shareToken}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trip }),
-    }).catch(console.error);
+    // In share-edit mode: debounce so rapid back-to-back mutate() calls
+    // (e.g. updateTripDates firing two mutations) collapse into one PUT request.
+    clearTimeout(_shareSaveTimer);
+    _shareSaveTimer = setTimeout(() => {
+      const trip = currentTrip();
+      if (!trip) return;
+      fetch(`/api/share/${window._shareToken}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trip }),
+      }).catch(console.error);
+    }, 300);
     return;
   }
   const token = getToken();
