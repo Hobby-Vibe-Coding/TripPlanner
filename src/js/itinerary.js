@@ -112,7 +112,7 @@ function renderItinerary(t) {
   const displayDayIndices = isMobile ? [itinMobileDay] : t.itinerary.map((_, i) => i);
   const displayDayCount = displayDayIndices.length;
 
-  const gridStyle = `--slot-h: 46px; grid-template-columns: 80px repeat(${displayDayCount}, minmax(160px, 1fr)); grid-template-rows: auto repeat(${N}, var(--slot-h));`;
+  const gridStyle = `--slot-h: 46px; --event-gap: 4px; grid-template-columns: 80px repeat(${displayDayCount}, minmax(160px, 1fr)); grid-template-rows: auto repeat(${N}, var(--slot-h));`;
 
   let cells = "";
 
@@ -208,8 +208,8 @@ function renderItinerary(t) {
       const deleteBtn     = isFilled && editing ? `<button class="slot-delete-btn" onclick="event.stopPropagation();deleteEvent(${dIdx},'${ev.id}')" title="Remove activity">✕</button>` : '';
 
       dayColHtml += `
-        <div class="itin-event ${isFilled ? 'filled' : ''}"
-             style="top:calc(${startSlot}*var(--slot-h));height:calc(${span}*var(--slot-h) - 1px);left:${leftPct}%;width:${widthPct}%;"
+           <div class="itin-event ${isFilled ? 'filled' : ''}"
+             style="top:calc(${startSlot}*var(--slot-h) + var(--event-gap));height:calc(${span}*var(--slot-h) - (2 * var(--event-gap)) - 1px);left:calc(${leftPct}% + var(--event-gap));width:calc(${widthPct}% - (2 * var(--event-gap)));"
              data-didx="${dIdx}" data-eid="${ev.id}" data-sidx="${startSlot}" data-span="${span}">
           <div class="event-top-bar">
             <div class="slot-time-badge">${spanLabel}</div>
@@ -511,7 +511,7 @@ function startEventResize(e, dIdx, eventId) {
     newSpan = Math.max(1, Math.min(newSpan, slots.length - sIdx));
     if (newSpan !== ev.span) {
       ev.span = newSpan;
-      eventEl.style.height = `calc(${newSpan} * var(--slot-h) - 2px)`;
+      eventEl.style.height = `calc(${newSpan} * var(--slot-h) - (2 * var(--event-gap)) - 1px)`;
     }
   };
 
