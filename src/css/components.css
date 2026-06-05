@@ -366,14 +366,14 @@ table.t tfoot td {
 .itin-event {
   position: absolute; box-sizing: border-box;
   overflow: hidden; z-index: 1;
-  padding: 3px 6px;
+  padding: 6px 8px;
 }
 .itin-event.filled {
   background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  border-radius: 7px;
+  border: 1px solid transparent;
+  border-radius: 8px;
 }
-.itin-event.filled:hover { border-color: var(--primary); }
+.itin-event.filled:hover { border-color: var(--accent); }
 /* Top bar: time badge + action buttons in the same flex row (no overlap) */
 .itin-event .event-top-bar {
   display: flex; justify-content: space-between; align-items: flex-start;
