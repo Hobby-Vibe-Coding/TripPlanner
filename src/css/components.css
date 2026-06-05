@@ -367,6 +367,7 @@ table.t tfoot td {
   position: absolute; box-sizing: border-box;
   overflow: hidden; z-index: 1;
   padding: 4px 6px;
+  display: flex; flex-direction: column;
 }
 .itin-event.filled {
   background: var(--accent-soft);
@@ -395,10 +396,10 @@ table.t tfoot td {
   font-variant-numeric: tabular-nums;
 }
 .itin-event .event-textarea {
-  width: 100%; height: 100%; background: transparent; border: none;
+  width: 100%; flex: 1; min-height: 0; background: transparent; border: none;
   padding: 0; resize: none;
   font: inherit; font-size: 13px; color: var(--ink);
-  overflow-y: auto; display: block;
+  overflow-y: auto;
 }
 .itin-event .event-textarea:focus { outline: none; }
 /* Resize handle (bottom edge of filled event) */
