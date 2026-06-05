@@ -213,7 +213,7 @@ function applyItineraryTimeState() {
   const startDate = parseDate(t.startDate);
   if (!startDate) return;
 
-  document.querySelectorAll('.itin-cell.slot.filled').forEach(cell => {
+  document.querySelectorAll('.itin-event.filled').forEach(cell => {
     const dIdx = parseInt(cell.dataset.didx);
     const sIdx = parseInt(cell.dataset.sidx);
     const span = parseInt(cell.dataset.span) || 1;

@@ -55,17 +55,15 @@ function showDaySummary() {
     const dd = new Date(startDate); dd.setDate(dd.getDate() + dIdx);
     dayLabel = dd.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   }
-  const activities = [];
-  const covered = new Set();
-  slots.forEach((time, sIdx) => {
-    if (covered.has(sIdx)) return;
-    const slot = day.slots[sIdx];
-    if (!slot || !slot.activity?.trim()) return;
-    const span = Math.min(slot.span || 1, slots.length - sIdx);
-    for (let k = 1; k < span; k++) covered.add(sIdx + k);
-    const timeLabel = span > 1 ? `${time} – ${slotEndLabel(slots, sIdx + span)}` : time;
-    activities.push({ time: timeLabel, activity: slot.activity, address: slot.address });
-  });
+  const activities = (day.events || [])
+    .filter(ev => ev.activity?.trim())
+    .sort((a, b) => a.startSlot - b.startSlot)
+    .map(ev => {
+      const timeLabel = (ev.span || 1) > 1
+        ? `${slots[ev.startSlot] || ''} – ${slotEndLabel(slots, ev.startSlot + ev.span)}`
+        : (slots[ev.startSlot] || '');
+      return { time: timeLabel, activity: ev.activity, address: ev.address };
+    });
   const content = activities.length
     ? activities.map(a => `
         <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);">
@@ -84,19 +82,37 @@ function showDaySummary() {
   });
 }
 
+// Assign column positions to overlapping events (mutates ev._col). Returns maxCols.
+function computeOverlapLayout(events) {
+  const sorted = [...events].sort((a, b) => a.startSlot - b.startSlot || (a.id < b.id ? -1 : 1));
+  const tracks = []; // endSlot of last event in each track
+  for (const ev of sorted) {
+    const track = tracks.findIndex(end => end <= ev.startSlot);
+    if (track === -1) {
+      ev._col = tracks.length;
+      tracks.push(ev.startSlot + (ev.span || 1));
+    } else {
+      ev._col = track;
+      tracks[track] = ev.startSlot + (ev.span || 1);
+    }
+  }
+  return tracks.length || 1;
+}
+
 function renderItinerary(t) {
   const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
+  const N = slots.length;
   const startDate = parseDate(t.startDate);
   const isMobile = window.innerWidth <= 600;
+  const editing = isEditing();
 
   // Clamp mobile day index
   itinMobileDay = Math.max(0, Math.min(t.itinerary.length - 1, itinMobileDay));
 
-  // On mobile show one day at a time; on desktop show all
   const displayDayIndices = isMobile ? [itinMobileDay] : t.itinerary.map((_, i) => i);
   const displayDayCount = displayDayIndices.length;
 
-  const gridStyle = `grid-template-columns: 80px repeat(${displayDayCount}, minmax(160px, 1fr)); grid-template-rows: auto repeat(${slots.length}, minmax(46px, auto));`;
+  const gridStyle = `--slot-h: 46px; grid-template-columns: 80px repeat(${displayDayCount}, minmax(160px, 1fr)); grid-template-rows: auto repeat(${N}, var(--slot-h));`;
 
   let cells = "";
 
@@ -123,42 +139,59 @@ function renderItinerary(t) {
       </div>`;
   });
 
-  // Slot rows: for each displayed day
+  // Day column containers — one per displayed day, spanning all slot rows
   displayDayIndices.forEach((dIdx, colPos) => {
     const d = t.itinerary[dIdx];
-    const covered = new Set();
+    const dayEvents = d.events || [];
+
+    // Compute overlap columns for filled events
+    dayEvents.forEach(ev => { ev._col = undefined; });
+    const filledEvents = dayEvents.filter(ev => ev.activity?.trim());
+    const maxCols = computeOverlapLayout(filledEvents);
+
+    let dayColHtml = '';
+
+    // Slot bands: transparent click targets, one per time slot
     slots.forEach((time, sIdx) => {
-      if (covered.has(sIdx)) return;
-      if (!d.slots[sIdx]) d.slots[sIdx] = { time, activity: "" };
-      const slot = d.slots[sIdx];
-      const v = slot.activity || "";
-      const isFilled = !!(v || slot.filled);
-      const span = Math.min(slot.span || 1, slots.length - sIdx);
-      for (let k = 1; k < span; k++) covered.add(sIdx + k);
+      dayColHtml += `<div class="itin-slot-band"
+           style="top:calc(${sIdx}*var(--slot-h));height:var(--slot-h);"
+           data-didx="${dIdx}" data-sidx="${sIdx}"
+           ${editing ? `onclick="createEventAt(${dIdx},${sIdx})"` : ''}></div>`;
+    });
 
-      const gridRow = span > 1 ? `grid-row: ${sIdx+2} / span ${span}` : `grid-row: ${sIdx+2}`;
-      const gridCol = `grid-column: ${colPos+2}`;
-      // Exclusive end label — matches what openActivityTimeDialog shows
-      const spanLabel = v ? (span > 1 ? `${slots[sIdx]} – ${slotEndLabel(slots, sIdx + span)}` : slots[sIdx]) : '';
+    // Events (filled + newly created unfilled ones)
+    dayEvents.forEach(ev => {
+      const v = ev.activity || '';
+      const isFilled = !!(v || ev.filled);
+      const startSlot = Math.max(0, Math.min(ev.startSlot || 0, N - 1));
+      const span      = Math.max(1, Math.min(ev.span || 1, N - startSlot));
+      const col       = ev._col ?? 0;
+      const mCols     = (ev._col != null) ? maxCols : 1;
+      const leftPct   = (col / mCols * 100).toFixed(2);
+      const widthPct  = (100 / mCols).toFixed(2);
 
-      const linkedResId = slot.reservationId || "";
+      const spanLabel = v ? (span > 1
+        ? `${slots[startSlot] || ''} – ${slotEndLabel(slots, startSlot + span)}`
+        : (slots[startSlot] || '')) : '';
+
+      const linkedResId = ev.reservationId || "";
       const linkedRes = linkedResId ? (t.reservations || []).find(r => r.id === linkedResId) : null;
       const resBadge = linkedRes ? `
         <div class="slot-res-badge ${linkedRes.status || 'pending'}">
           ${linkedRes.status === 'booked' ? '✓' : linkedRes.status === 'cancelled' ? '✗' : '⏳'}
           ${escapeHtml(linkedRes.name)}
         </div>` : '';
-      const resLinkBtn = v && isEditing() ? `
-        <button class="slot-res-link-btn ${linkedRes ? 'linked' : ''}"
-                onclick="openResLinkPicker(${dIdx},${sIdx})" title="${linkedRes ? 'Change reservation link' : 'Link reservation'}">
-          🔗
-        </button>` : '';
 
-      const addr = slot.address || '';
+      const resLinkBtn = isFilled && editing ? `
+        <button class="slot-res-link-btn ${linkedRes ? 'linked' : ''}"
+                onclick="event.stopPropagation();openResLinkPicker(${dIdx},'${ev.id}')"
+                title="${linkedRes ? 'Change reservation link' : 'Link reservation'}">🔗</button>` : '';
+
+      const addr = ev.address || '';
       const mapsUrl = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : '';
-      const addrInput = v && isEditing() && !addr ? `
+      const addrInput = v && editing && !addr ? `
         <input class="slot-addr-input" value="" placeholder="📍 Add address..."
-               onchange="updateSlotField(${dIdx},${sIdx},'address',this.value)"
+               onchange="updateEventField(${dIdx},'${ev.id}','address',this.value)"
                onclick="event.stopPropagation()" />` : '';
       const addrLink = v && addr ? `
         <div class="slot-addr-row">
@@ -167,24 +200,37 @@ function renderItinerary(t) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
             ${escapeHtml(addr)}
           </a>
-          ${isEditing() ? `<button class="slot-addr-clear" onclick="event.stopPropagation();updateSlotField(${dIdx},${sIdx},'address','')" title="Remove address">✕</button>` : ''}
+          ${editing ? `<button class="slot-addr-clear" onclick="event.stopPropagation();updateEventField(${dIdx},'${ev.id}','address','')" title="Remove address">✕</button>` : ''}
         </div>` : '';
-      const deleteBtn = isFilled && isEditing() ? `
-        <button class="slot-delete-btn" onclick="event.stopPropagation();deleteSlot(${dIdx},${sIdx})" title="Remove activity">✕</button>` : '';
 
-      cells += `<div class="itin-cell slot ${isFilled?"filled":""}" style="${gridRow}; ${gridCol};"
-                     data-didx="${dIdx}" data-sidx="${sIdx}" data-span="${span}">
-        <div class="slot-content">
-          ${spanLabel ? `<div class="slot-time-badge">${spanLabel}</div>` : ''}
-          <textarea class="autogrow" onchange="updateSlot(${dIdx}, ${sIdx}, this.value)" placeholder="${isFilled && !v ? 'Enter activity...' : ''}">${escapeHtml(v)}</textarea>
+      const mobileEditBtn = v ? `<button class="mobile-edit-btn" onclick="openEventDialog(${dIdx},'${ev.id}')" title="Edit time">⏱</button>` : '';
+      const moveBtn       = v && editing ? `<button class="move-handle-btn" onmousedown="event.stopPropagation();startEventMove(event,${dIdx},'${ev.id}')" title="Move event">⠿</button>` : '';
+      const deleteBtn     = isFilled && editing ? `<button class="slot-delete-btn" onclick="event.stopPropagation();deleteEvent(${dIdx},'${ev.id}')" title="Remove activity">✕</button>` : '';
+
+      dayColHtml += `
+        <div class="itin-event ${isFilled ? 'filled' : ''}"
+             style="top:calc(${startSlot}*var(--slot-h) + 2px);height:calc(${span}*var(--slot-h) - 4px);left:calc(${leftPct}% + 3px);width:calc(${widthPct}% - 6px);"
+             data-didx="${dIdx}" data-eid="${ev.id}" data-sidx="${startSlot}" data-span="${span}">
+          <div class="event-top-bar">
+            <div class="slot-time-badge">${spanLabel}</div>
+            ${isFilled ? `<div class="slot-btns">${mobileEditBtn}${moveBtn}${resLinkBtn}${deleteBtn}</div>` : ''}
+          </div>
+          <textarea class="event-textarea"
+                    onchange="updateEventActivity(${dIdx},'${ev.id}',this.value)"
+                    onblur="removeIfEmpty(${dIdx},'${ev.id}')"
+                    placeholder="${isFilled && !v ? 'Enter activity...' : 'New activity...'}">${escapeHtml(v)}</textarea>
           ${addrInput}
           ${addrLink}
           ${resBadge}
-        </div>
-        ${v ? `<div class="drag-handle" onmousedown="startSlotDrag(event, ${dIdx}, ${sIdx})"></div>` : ''}
-        ${isFilled ? `<div class="slot-btns">${v ? `<button class="mobile-edit-btn" onclick="openActivityTimeDialog(${dIdx}, ${sIdx})" title="Edit time">⏱</button>` : ''}${resLinkBtn}${deleteBtn}</div>` : ''}
-      </div>`;
+          ${v && editing ? `<div class="event-resize-handle" onmousedown="event.stopPropagation();startEventResize(event,${dIdx},'${ev.id}')"></div>` : ''}
+        </div>`;
     });
+
+    cells += `<div class="itin-day-col"
+                   style="grid-row:2/span ${N};grid-column:${colPos+2};"
+                   data-didx="${dIdx}">
+      ${dayColHtml}
+    </div>`;
   });
 
   // Time labels (column 1)
@@ -214,7 +260,7 @@ function renderItinerary(t) {
           <button class="btn sm" onclick="openTimeSlotsEditor()">⏱ Edit time slots</button>
         </div>
       </div>
-      <div class="panel-sub no-print">Tap any cell to add an activity. Drag the bottom edge to span multiple hours. On mobile, tap ⏱ to set duration.</div>
+      <div class="panel-sub no-print">Tap any cell to add an activity. Drag the bottom edge to resize. Drag ⠿ to move to a different time or day. On mobile, tap ⏱ to set time and date.</div>
       ${mobileNav}
       <div class="itin-grid-wrap">
         <div class="itin-grid" style="${gridStyle}">
@@ -225,14 +271,14 @@ function renderItinerary(t) {
   `;
 }
 
-function openResLinkPicker(dIdx, sIdx) {
+function openResLinkPicker(dIdx, eventId) {
   const t = currentTrip();
-  const slot = t.itinerary[dIdx]?.slots[sIdx];
-  if (!slot) return;
+  const day = t.itinerary[dIdx];
+  const ev = day.events.find(e => e.id === eventId);
+  if (!ev) return;
   const reservations = (t.reservations || []).filter(r => r.name?.trim());
-  const currentId = slot.reservationId || "";
+  const currentId = ev.reservationId || "";
 
-  // Compute which date this day corresponds to for auto-highlight
   const startDate = parseDate(t.startDate);
   let dayDateStr = "";
   if (startDate) { const dd = new Date(startDate); dd.setDate(dd.getDate() + dIdx); dayDateStr = dd.toISOString().slice(0, 10); }
@@ -244,7 +290,7 @@ function openResLinkPicker(dIdx, sIdx) {
     size: "sm",
     body: `
       <p style="font-size:13px;color:var(--ink-soft);margin-bottom:12px;">
-        Choose a reservation to link to <strong>${escapeHtml(slot.activity)}</strong>.
+        Choose a reservation to link to <strong>${escapeHtml(ev.activity)}</strong>.
       </p>
       <div style="display:flex;flex-direction:column;gap:6px;">
         ${reservations.length ? reservations.map(r => {
@@ -255,7 +301,7 @@ function openResLinkPicker(dIdx, sIdx) {
                           border:1.5px solid ${isLinked ? 'var(--primary)' : 'var(--line)'};
                           background:${isLinked ? 'var(--primary-soft)' : 'var(--surface-2)'};user-select:none;">
               <input type="radio" name="res-pick" value="${r.id}" ${isLinked ? 'checked' : ''}
-                     style="accent-color:var(--primary);" onchange="linkSlotReservation(${dIdx},${sIdx},'${r.id}')" />
+                     style="accent-color:var(--primary);" onchange="linkEventReservation(${dIdx},'${eventId}','${r.id}')" />
               <span style="flex:1;font-size:13px;font-weight:600;">${escapeHtml(r.name)}</span>
               <span class="slot-res-badge ${r.status||'pending'}" style="pointer-events:none;">
                 ${STATUS_ICON[r.status] || '⏳'} ${r.status || 'pending'}
@@ -265,26 +311,29 @@ function openResLinkPicker(dIdx, sIdx) {
         }).join("") : `<p class="muted text-sm">No named reservations yet. Add some in the Reservations tab.</p>`}
       </div>
       ${currentId ? `<button class="btn sm ghost" style="margin-top:12px;color:#c0392b;"
-                             onclick="linkSlotReservation(${dIdx},${sIdx},'')">✕ Remove link</button>` : ""}
+                             onclick="linkEventReservation(${dIdx},'${eventId}','')">✕ Remove link</button>` : ""}
     `,
     actions: [{ label: "Done", primary: true, onClick: () => { closeModal(); render(); } }],
   });
 }
 
-function linkSlotReservation(dIdx, sIdx, resId) {
+function linkEventReservation(dIdx, eventId, resId) {
   const t = currentTrip();
-  if (!t.itinerary[dIdx]?.slots[sIdx]) return;
-  t.itinerary[dIdx].slots[sIdx].reservationId = resId || undefined;
   const day = t.itinerary[dIdx];
-  mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, slots: day.slots });
+  const ev = day.events.find(e => e.id === eventId);
+  if (!ev) return;
+  ev.reservationId = resId || undefined;
+  mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, events: day.events });
 }
-function updateSlotField(dIdx, sIdx, field, value) {
+
+function updateEventField(dIdx, eventId, field, value) {
   if (!guardEdit()) return;
   const t = currentTrip();
-  if (!t.itinerary[dIdx]?.slots[sIdx]) return;
-  t.itinerary[dIdx].slots[sIdx][field] = value || undefined;
   const day = t.itinerary[dIdx];
-  mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, slots: day.slots });
+  const ev = day.events.find(e => e.id === eventId);
+  if (!ev) return;
+  ev[field] = value || undefined;
+  mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, events: day.events });
   render();
 }
 
@@ -294,39 +343,60 @@ function updateDayTheme(i, v) {
   t.itinerary[i].theme = v;
   mutate({ type: 'updateDayTheme', tripId: t.id, dayId: t.itinerary[i].id, theme: v });
 }
-function updateSlot(dIdx, sIdx, v) {
+
+function updateEventActivity(dIdx, eventId, v) {
   if (!guardEdit()) return;
   const t = currentTrip();
-  if (!t.itinerary[dIdx].slots[sIdx]) t.itinerary[dIdx].slots[sIdx] = { time: (t.timeSlots||TIME_SLOTS_DEFAULT)[sIdx], activity: "" };
-  const slot = t.itinerary[dIdx].slots[sIdx];
-  const hasActivity = !!(v && v.trim());
-  slot.activity = v;
-  slot.filled = hasActivity;
-  if (!hasActivity) slot.span = 1;
   const day = t.itinerary[dIdx];
-  mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, slots: day.slots });
+  const idx = day.events.findIndex(e => e.id === eventId);
+  if (idx === -1) return;
+  const ev = day.events[idx];
+  const hasActivity = !!(v && v.trim());
+  if (!hasActivity) {
+    // Remove event if emptied
+    day.events.splice(idx, 1);
+    mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, events: day.events });
+    render();
+    return;
+  }
+  ev.activity = v;
+  ev.filled = true;
+  mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, events: day.events });
   render();
 }
-function deleteSlot(dIdx, sIdx) {
+
+function createEventAt(dIdx, sIdx) {
+  if (!isEditing()) return;
   if (!guardEdit()) return;
   const t = currentTrip();
-  const slot = t.itinerary[dIdx]?.slots[sIdx];
-  if (!slot) return;
-  const label = slot.activity?.trim() ? `"${slot.activity.trim().substring(0, 40)}"` : "this activity";
+  const day = t.itinerary[dIdx];
+  const newId = uid();
+  day.events = day.events || [];
+  day.events.push({ id: newId, startSlot: sIdx, span: 1, activity: '', address: '', reservationId: null, filled: false });
+  render();
+  requestAnimationFrame(() => {
+    const ta = document.querySelector(`[data-eid="${newId}"] .event-textarea`);
+    if (ta) ta.focus();
+  });
+}
+
+function deleteEvent(dIdx, eventId) {
+  if (!guardEdit()) return;
+  const t = currentTrip();
+  const day = t.itinerary[dIdx];
+  const idx = day.events.findIndex(e => e.id === eventId);
+  if (idx === -1) return;
+  const ev = day.events[idx];
+  const label = ev.activity?.trim() ? `"${ev.activity.trim().substring(0, 40)}"` : "this activity";
   showModal({
     title: "Remove activity",
     size: "sm",
-    body: `<p style="margin:0;font-size:14px;">Remove ${label} from the itinerary? This cannot be undone.</p>`,
+    body: `<p style="margin:0;font-size:14px;">Remove ${escapeHtml(label)} from the itinerary? This cannot be undone.</p>`,
     actions: [
       { label: "Cancel", onClick: closeModal },
       { label: "Remove", danger: true, onClick: () => {
-        slot.activity = "";
-        slot.filled = false;
-        slot.span = 1;
-        delete slot.address;
-        delete slot.reservationId;
-        const day = t.itinerary[dIdx];
-        mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, slots: day.slots });
+        day.events.splice(idx, 1);
+        mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, events: day.events });
         closeModal();
         render();
       }}
@@ -341,7 +411,6 @@ function openTimeSlotsEditor() {
   const firstSlot = current[0] || "7:00 AM";
   const lastSlot = current[current.length - 1] || "11:00 PM";
 
-  // Detect interval from current slots
   let detectedInterval = 60;
   if (current.length >= 2) {
     const a = parseTime12(current[0]), b = parseTime12(current[1]);
@@ -350,17 +419,6 @@ function openTimeSlotsEditor() {
 
   const halfHours = allHalfHourTimes();
   const timeOpts = (sel) => halfHours.map(h => `<option${h===sel?" selected":""}>${h}</option>`).join("");
-
-  function buildPreview() {
-    const start = document.getElementById('tse-start')?.value || firstSlot;
-    const last = document.getElementById('tse-last')?.value || lastSlot;
-    const iv = parseInt(document.getElementById('tse-interval')?.value || 60);
-    const gen = generateSlotsFromRange(start, last, iv);
-    const el = document.getElementById('tse-preview');
-    if (el) el.textContent = gen.length
-      ? `${gen.length} slots: ${gen[0]} → ${gen[gen.length-1]}`
-      : 'No slots — check start/end times';
-  }
 
   showModal({
     title: "Time slots",
@@ -400,15 +458,18 @@ function openTimeSlotsEditor() {
       { label: "Cancel", onClick: closeModal },
       { label: "Save", primary: true, onClick: () => {
         const start = document.getElementById('tse-start').value;
-        const last = document.getElementById('tse-last').value;
-        const iv = parseInt(document.getElementById('tse-interval').value);
-        const slots = generateSlotsFromRange(start, last, iv);
-        if (!slots.length) return alert("No slots generated — make sure first slot is before last slot.");
-        t.timeSlots = slots;
+        const last  = document.getElementById('tse-last').value;
+        const iv    = parseInt(document.getElementById('tse-interval').value);
+        const newSlots = generateSlotsFromRange(start, last, iv);
+        if (!newSlots.length) return alert("No slots generated — make sure first slot is before last slot.");
+        const oldSlots = t.timeSlots || TIME_SLOTS_DEFAULT;
+        t.timeSlots = newSlots;
         t.itinerary.forEach(d => {
-          const oldMap = {};
-          (d.slots||[]).forEach(s => { oldMap[s.time] = { activity: s.activity, span: s.span, filled: s.filled }; });
-          d.slots = slots.map(time => ({ time, activity: (oldMap[time]||{}).activity || "", span: (oldMap[time]||{}).span || 1, ...(oldMap[time]?.filled ? { filled: true } : {}) }));
+          d.events = (d.events || []).map(ev => {
+            const timeLabel = oldSlots[ev.startSlot];
+            const newStart  = timeLabel ? newSlots.indexOf(timeLabel) : -1;
+            return { ...ev, startSlot: newStart >= 0 ? newStart : Math.min(ev.startSlot, newSlots.length - 1) };
+          }).filter(ev => ev.startSlot >= 0 && ev.startSlot < newSlots.length);
         });
         mutate({ type: 'syncTimeSlots', tripId: t.id, timeSlots: t.timeSlots, days: t.itinerary });
         closeModal(); render();
@@ -417,83 +478,50 @@ function openTimeSlotsEditor() {
   });
 }
 
-// -------- DRAG TO RESIZE ACTIVITY SPAN --------
-let dragState = null;
-
-function startSlotDrag(e, dIdx, sIdx) {
+// -------- DRAG TO RESIZE EVENT SPAN --------
+function startEventResize(e, dIdx, eventId) {
   if (!isEditing()) return;
   e.preventDefault();
   const t = currentTrip();
   const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
-  const cell = e.target.closest('.itin-cell.slot');
-  if (!cell) return;
+  const day = t.itinerary[dIdx];
+  const ev = day.events.find(x => x.id === eventId);
+  if (!ev) return;
+  const sIdx = ev.startSlot;
+  const eventEl = document.querySelector(`[data-eid="${eventId}"]`);
+  if (!eventEl) return;
 
-  // Get all slot cells for this day to compute row positions
-  const grid = cell.closest('.itin-grid');
-  const allTimeCells = grid.querySelectorAll('.itin-cell.time:not(.daycol)');
-  // Build row boundaries from the time cells (column 1)
-  // Actually use all cells in column 1 that are slot rows
-  const timeCellArr = [];
-  allTimeCells.forEach(tc => {
-    // skip the header "Time" cell
-    if (tc.style.gridRow && parseInt(tc.style.gridRow) >= 2) {
-      timeCellArr.push(tc);
-    }
+  // Build row boundaries from time label cells
+  const grid = document.querySelector('.itin-grid');
+  const timeCells = [...grid.querySelectorAll('.itin-cell.time')].filter(c => {
+    const row = parseInt(c.style.gridRow);
+    return !isNaN(row) && row >= 2;
   });
-
-  const rowBounds = timeCellArr.map(tc => {
+  const rowBounds = timeCells.map(tc => {
     const r = tc.getBoundingClientRect();
-    return { top: r.top, bottom: r.bottom, mid: r.top + r.height/2 };
+    return { top: r.top, bottom: r.bottom, mid: r.top + r.height / 2 };
   });
 
-  const startSpan = t.itinerary[dIdx].slots[sIdx].span || 1;
-
-  dragState = { dIdx, sIdx, startSpan, rowBounds, maxSpan: slots.length - sIdx };
-
-  const onMove = (ev) => {
-    if (!dragState) return;
-    const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
-    // Find which row the mouse is over
+  const onMove = (ev2) => {
+    const clientY = ev2.touches ? ev2.touches[0].clientY : ev2.clientY;
     let newSpan = 1;
-    for (let i = sIdx; i < dragState.rowBounds.length; i++) {
-      if (clientY >= dragState.rowBounds[i].mid) {
-        newSpan = i - sIdx + 1;
-      }
+    for (let i = sIdx; i < rowBounds.length; i++) {
+      if (clientY >= rowBounds[i].mid) newSpan = i - sIdx + 1;
     }
-    newSpan = Math.max(1, Math.min(newSpan, dragState.maxSpan));
-
-    // Check if any covered slot has content (don't merge over filled slots)
-    const day = t.itinerary[dIdx];
-    let canSpan = true;
-    for (let k = 1; k < newSpan; k++) {
-      const coveredSlot = day.slots[sIdx + k];
-      if (coveredSlot && (coveredSlot.filled || (coveredSlot.activity && coveredSlot.activity.trim()))) {
-        newSpan = k; // stop before the filled slot
-        break;
-      }
-    }
-
-    if (newSpan !== (t.itinerary[dIdx].slots[sIdx].span || 1)) {
-      t.itinerary[dIdx].slots[sIdx].span = newSpan;
-      // Clear span on covered slots
-      for (let k = 1; k < newSpan; k++) {
-        if (day.slots[sIdx + k]) day.slots[sIdx + k].span = 1;
-      }
-      // Update cell visually without full re-render during drag
-      cell.style.gridRow = `${sIdx+2} / span ${newSpan}`;
+    newSpan = Math.max(1, Math.min(newSpan, slots.length - sIdx));
+    if (newSpan !== ev.span) {
+      ev.span = newSpan;
+      eventEl.style.height = `calc(${newSpan} * var(--slot-h) - 2px)`;
     }
   };
 
   const onUp = () => {
-    dragState = null;
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     document.removeEventListener('touchmove', onMove);
     document.removeEventListener('touchend', onUp);
-    const t2 = currentTrip();
-    const day = t2?.itinerary[dIdx];
-    if (day) mutate({ type: 'updateDaySlots', tripId: t2.id, dayId: day.id, slots: day.slots });
-    render(); // full re-render on drag end
+    mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, events: day.events });
+    render();
   };
 
   document.addEventListener('mousemove', onMove);
@@ -502,57 +530,185 @@ function startSlotDrag(e, dIdx, sIdx) {
   document.addEventListener('touchend', onUp);
 }
 
-// -------- MOBILE ACTIVITY TIME DIALOG --------
-function openActivityTimeDialog(dIdx, sIdx) {
+// -------- DRAG TO MOVE EVENT --------
+function moveEventTo(fromDIdx, eventId, toDIdx, toSIdx) {
+  const t = currentTrip();
+  const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
+  const fromDay = t.itinerary[fromDIdx];
+  const toDay   = t.itinerary[toDIdx];
+  const evIdx = fromDay.events.findIndex(e => e.id === eventId);
+  if (evIdx === -1) return;
+  const ev = fromDay.events[evIdx];
+
+  const clampedStart = Math.max(0, Math.min(toSIdx, slots.length - 1));
+  const clampedSpan  = Math.min(ev.span || 1, slots.length - clampedStart);
+
+  if (fromDIdx === toDIdx) {
+    ev.startSlot = clampedStart;
+    ev.span = clampedSpan;
+    mutate({ type: 'updateDaySlots', tripId: t.id, dayId: fromDay.id, events: fromDay.events });
+  } else {
+    fromDay.events.splice(evIdx, 1);
+    ev.startSlot = clampedStart;
+    ev.span = clampedSpan;
+    toDay.events = toDay.events || [];
+    toDay.events.push(ev);
+    mutate({ type: 'updateDaySlots', tripId: t.id, dayId: fromDay.id, events: fromDay.events });
+    mutate({ type: 'updateDaySlots', tripId: t.id, dayId: toDay.id,   events: toDay.events });
+  }
+  render();
+}
+
+function startEventMove(e, dIdx, eventId) {
+  if (!isEditing()) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const t = currentTrip();
+  const day = t.itinerary[dIdx];
+  const ev = day.events.find(x => x.id === eventId);
+  if (!ev) return;
+  const span = ev.span || 1;
+
+  const ghost = document.createElement('div');
+  ghost.className = 'itin-drag-ghost';
+  ghost.textContent = (ev.activity || '').slice(0, 60);
+  ghost.style.left = '-300px';
+  ghost.style.top  = '-300px';
+  document.body.appendChild(ghost);
+
+  let currentTarget = null;
+
+  const getTarget = (x, y) => {
+    ghost.style.visibility = 'hidden';
+    const el = document.elementFromPoint(x, y);
+    ghost.style.visibility = '';
+    if (!el) return null;
+    // Try slot band first
+    const band = el.closest('.itin-slot-band');
+    if (band) return { dIdx: parseInt(band.dataset.didx), sIdx: parseInt(band.dataset.sidx) };
+    // Fall back to day column (calculate slot from Y)
+    const dayCol = el.closest('.itin-day-col');
+    if (dayCol) {
+      const td  = parseInt(dayCol.dataset.didx);
+      const rect = dayCol.getBoundingClientRect();
+      const SLOT_H = 46;
+      const ts = Math.max(0, Math.min(Math.floor((y - rect.top) / SLOT_H), (t.timeSlots || TIME_SLOTS_DEFAULT).length - 1));
+      return { dIdx: td, sIdx: ts };
+    }
+    return null;
+  };
+
+  const clearHighlights = () => {
+    document.querySelectorAll('.itin-slot-band.drop-highlight').forEach(c => c.classList.remove('drop-highlight'));
+  };
+
+  const highlightTarget = (td, ts) => {
+    clearHighlights();
+    const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
+    if (ts + span > slots.length) return;
+    const grid = document.querySelector('.itin-grid');
+    if (!grid) return;
+    for (let k = 0; k < span; k++) {
+      const band = grid.querySelector(`.itin-slot-band[data-didx="${td}"][data-sidx="${ts + k}"]`);
+      if (band) band.classList.add('drop-highlight');
+    }
+  };
+
+  const onMove = (ev2) => {
+    ev2.preventDefault();
+    const x = ev2.touches ? ev2.touches[0].clientX : ev2.clientX;
+    const y = ev2.touches ? ev2.touches[0].clientY : ev2.clientY;
+    ghost.style.left = (x + 14) + 'px';
+    ghost.style.top  = (y - 8)  + 'px';
+
+    const target = getTarget(x, y);
+    if (!target) { clearHighlights(); currentTarget = null; return; }
+    if (!currentTarget || target.dIdx !== currentTarget.dIdx || target.sIdx !== currentTarget.sIdx) {
+      currentTarget = target;
+      highlightTarget(target.dIdx, target.sIdx);
+    }
+  };
+
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+    ghost.remove();
+    clearHighlights();
+    if (currentTarget && (currentTarget.dIdx !== dIdx || currentTarget.sIdx !== ev.startSlot)) {
+      moveEventTo(dIdx, eventId, currentTarget.dIdx, currentTarget.sIdx);
+    }
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend', onUp);
+}
+
+// -------- EVENT TIME / DATE DIALOG --------
+function _atdRebuildEnd(newDayIdxStr, newStartStr) {
+  const t = currentTrip(); if (!t) return;
+  const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
+  const ns = parseInt(newStartStr);
+  const endSel = document.getElementById('atd-end'); if (!endSel) return;
+  const curEnd = parseInt(endSel.value) || (ns + 1);
+  const opts = [];
+  for (let i = ns + 1; i <= slots.length; i++) {
+    opts.push(`<option value="${i}" ${i === curEnd ? 'selected' : ''}>${slotEndLabel(slots, i)}</option>`);
+  }
+  endSel.innerHTML = opts.join('');
+}
+
+function openEventDialog(dIdx, eventId) {
   const t = currentTrip(); if (!t) return;
   const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
   const day = t.itinerary[dIdx];
-  const slot = day.slots[sIdx];
-  const currentSpan = slot.span || 1;
+  const ev = day.events.find(e => e.id === eventId);
+  if (!ev) return;
   const startDate = parseDate(t.startDate);
-  let dayLabel = `Day ${dIdx+1}`;
-  if (startDate) {
-    const dd = new Date(startDate); dd.setDate(dd.getDate() + dIdx);
-    dayLabel = dd.toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" });
-  }
 
-  // Build start time options (current start slot)
+  const dayOptions = t.itinerary.map((_, i) => {
+    let label = `Day ${i + 1}`;
+    if (startDate) {
+      const dd = new Date(startDate); dd.setDate(dd.getDate() + i);
+      label = dd.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    }
+    return `<option value="${i}" ${i === dIdx ? "selected" : ""}>${label}</option>`;
+  }).join("");
+
   const startOptions = slots.map((s, i) =>
-    `<option value="${i}" ${i===sIdx?"selected":""}>${s}</option>`
+    `<option value="${i}" ${i === ev.startSlot ? "selected" : ""}>${s}</option>`
   ).join("");
 
-  // Build end time options — exclusive end (matches what the calendar displays: "7AM – 11AM")
-  // currentEndIdx = sIdx + span (first slot AFTER the event, same as the display)
-  const currentEndIdx = sIdx + currentSpan;
-  const endOpts = [];
-  for (let i = sIdx + 1; i <= slots.length; i++) {
-    let blocked = false;
-    for (let k = sIdx + 1; k < i; k++) {
-      if (day.slots[k] && day.slots[k].activity && day.slots[k].activity.trim()) { blocked = true; break; }
-    }
-    if (blocked) break;
-    const label = slotEndLabel(slots, i);
-    endOpts.push(`<option value="${i}" ${i===currentEndIdx?"selected":""}>${label}</option>`);
+  const currentEndIdx = ev.startSlot + (ev.span || 1);
+  const endOptions = [];
+  for (let i = ev.startSlot + 1; i <= slots.length; i++) {
+    endOptions.push(`<option value="${i}" ${i === currentEndIdx ? "selected" : ""}>${slotEndLabel(slots, i)}</option>`);
   }
-  const endOptions = endOpts.join("");
 
   showModal({
-    title: `${escapeHtml(slot.activity || "Activity")}`,
+    title: escapeHtml(ev.activity || "Activity"),
     size: "sm",
     body: `
       <div class="activity-time-form">
-        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;">${dayLabel}</div>
         <div class="field">
           <label>Activity</label>
-          <textarea id="atd-activity" rows="2" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;">${escapeHtml(slot.activity||"")}</textarea>
+          <textarea id="atd-activity" rows="2" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;">${escapeHtml(ev.activity || "")}</textarea>
+        </div>
+        <div class="field-row">
+          <label>Day</label>
+          <select id="atd-day" onchange="_atdRebuildEnd(this.value, document.getElementById('atd-start').value)">${dayOptions}</select>
         </div>
         <div class="field-row">
           <label>Start</label>
-          <select id="atd-start">${startOptions}</select>
+          <select id="atd-start" onchange="_atdRebuildEnd(document.getElementById('atd-day').value, this.value)">${startOptions}</select>
         </div>
         <div class="field-row">
           <label>End</label>
-          <select id="atd-end">${endOptions}</select>
+          <select id="atd-end">${endOptions.join('')}</select>
         </div>
       </div>
     `,
@@ -560,36 +716,54 @@ function openActivityTimeDialog(dIdx, sIdx) {
       { label: "Cancel", onClick: closeModal },
       { label: "Save", primary: true, onClick: () => {
         const newActivity = document.getElementById("atd-activity").value;
-        const newStart = parseInt(document.getElementById("atd-start").value);
-        const newEnd = parseInt(document.getElementById("atd-end").value);
-        // newEnd is exclusive (same as display), so span = newEnd - newStart
-        const newSpan = Math.max(1, newEnd - newStart);
-
-        // If start changed, move the activity
-        if (newStart !== sIdx) {
-          // Clear old slot
-          day.slots[sIdx].activity = "";
-          day.slots[sIdx].span = 1;
-          // Set new slot
-          if (!day.slots[newStart]) day.slots[newStart] = { time: slots[newStart], activity: "" };
-          day.slots[newStart].activity = newActivity;
-          day.slots[newStart].span = newSpan;
-        } else {
-          day.slots[sIdx].activity = newActivity;
-          day.slots[sIdx].span = newSpan;
+        const newDayIdx   = parseInt(document.getElementById("atd-day").value);
+        const newStart    = parseInt(document.getElementById("atd-start").value);
+        const newEnd      = parseInt(document.getElementById("atd-end").value);
+        if (newEnd <= newStart) {
+          document.getElementById("atd-end").style.borderColor = "#c0392b";
+          return;
         }
+        const newSpan     = Math.max(1, newEnd - newStart);
 
-        mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, slots: day.slots });
+        ev.activity  = newActivity;
+        ev.startSlot = newStart;
+        ev.span      = newSpan;
+        ev.filled    = !!(newActivity?.trim());
+
+        if (newDayIdx === dIdx) {
+          mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id, events: day.events });
+        } else {
+          day.events = day.events.filter(e => e.id !== eventId);
+          const toDay = t.itinerary[newDayIdx];
+          toDay.events = toDay.events || [];
+          toDay.events.push(ev);
+          mutate({ type: 'updateDaySlots', tripId: t.id, dayId: day.id,   events: day.events });
+          mutate({ type: 'updateDaySlots', tripId: t.id, dayId: toDay.id, events: toDay.events });
+        }
         closeModal(); render();
       }}
     ]
   });
 }
 
+function removeIfEmpty(dIdx, eventId) {
+  const t = currentTrip(); if (!t) return;
+  const day = t.itinerary[dIdx];
+  const idx = day.events.findIndex(e => e.id === eventId);
+  if (idx === -1) return;
+  const ev = day.events[idx];
+  if (!ev.activity?.trim() && !ev.filled) {
+    day.events.splice(idx, 1);
+    render();
+  }
+}
+
 Object.assign(window, {
   renderItinerary,
   navItinDay, showDaySummary, openTimeSlotsEditor, openResLinkPicker,
-  linkSlotReservation, updateSlotField, updateDayTheme, updateSlot, deleteSlot,
-  startSlotDrag, openActivityTimeDialog,
+  linkEventReservation, updateEventField, updateDayTheme, updateEventActivity,
+  createEventAt, deleteEvent, removeIfEmpty,
+  startEventResize, startEventMove, moveEventTo,
+  openEventDialog, _atdRebuildEnd,
+  computeOverlapLayout,
 });
-

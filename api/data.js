@@ -66,12 +66,17 @@ export async function loadStateFromDB(sql, userId) {
 
     const itinerary = (dayMap[tr.id] || []).map(d => ({
       id: d.id, theme: d.theme,
-      slots: (slotMap[d.id] || []).map(s => {
-        const slot = { time: s.time_label, activity: s.activity, span: s.span };
-        if (s.address)        slot.address       = s.address;
-        if (s.reservation_id) slot.reservationId = s.reservation_id;
-        return slot;
-      }),
+      events: (slotMap[d.id] || [])
+        .filter(s => s.activity?.trim())
+        .map(s => ({
+          id:            String(s.id),
+          startSlot:     s.slot_index,
+          span:          s.span || 1,
+          activity:      s.activity,
+          address:       s.address || '',
+          reservationId: s.reservation_id || null,
+          filled:        true,
+        })),
     }));
 
     const expenses = (expMap[tr.id] || []).map(e => {
@@ -173,10 +178,13 @@ export async function insertTripRows(sql, userId, trip, order) {
     const day = trip.itinerary[di];
     if (!day.id) continue;
     await sql`INSERT INTO itinerary_days (id, trip_id, day_index, theme) VALUES (${day.id}, ${trip.id}, ${di}, ${day.theme || ''})`;
-    for (let si = 0; si < (day.slots || []).length; si++) {
-      const s = day.slots[si];
+    const eventsToInsert = day.events
+      ? day.events.filter(ev => ev.activity?.trim())
+      : (day.slots || []).map((s, si) => s?.activity?.trim() ? { startSlot: si, ...s } : null).filter(Boolean);
+    for (const ev of eventsToInsert) {
+      const slotIndex = ev.startSlot ?? ev.slot_index ?? 0;
       await sql`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
-        VALUES (${day.id}, ${si}, ${s.time || ''}, ${s.activity || ''}, ${s.address || ''}, ${s.span ?? 1}, ${s.reservationId ?? s.reservation_id ?? null})`;
+        VALUES (${day.id}, ${slotIndex}, ${ev.time || ev.time_label || ''}, ${ev.activity || ''}, ${ev.address || ''}, ${ev.span ?? 1}, ${ev.reservationId ?? ev.reservation_id ?? null})`;
     }
   }
 

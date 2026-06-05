@@ -161,13 +161,16 @@ export default async function handler(req, res) {
       }
 
       case "updateDaySlots": {
-        const { tripId, dayId, slots } = p;
+        const { tripId, dayId, events, slots } = p;
+        const data = events || slots || [];
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
         await sql`DELETE FROM itinerary_slots WHERE day_id = ${dayId}`;
-        for (let si = 0; si < (slots || []).length; si++) {
-          const s = slots[si];
+        for (let i = 0; i < data.length; i++) {
+          const ev = data[i];
+          if (!ev.activity?.trim()) continue;
+          const slotIndex = ev.startSlot ?? ev.slot_index ?? i;
           await sql`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
-            VALUES (${dayId}, ${si}, ${s.time || ''}, ${s.activity || ''}, ${s.address || ''}, ${s.span ?? 1}, ${s.reservationId ?? null})`;
+            VALUES (${dayId}, ${slotIndex}, ${ev.time || ''}, ${ev.activity || ''}, ${ev.address || ''}, ${ev.span ?? 1}, ${ev.reservationId ?? null})`;
         }
         break;
       }
@@ -179,10 +182,13 @@ export default async function handler(req, res) {
         for (const day of (days || [])) {
           await sql`UPDATE itinerary_days SET theme = ${day.theme || ''} WHERE id = ${day.id}`;
           await sql`DELETE FROM itinerary_slots WHERE day_id = ${day.id}`;
-          for (let si = 0; si < (day.slots || []).length; si++) {
-            const s = day.slots[si];
+          const evts = day.events || day.slots || [];
+          for (let i = 0; i < evts.length; i++) {
+            const ev = evts[i];
+            if (!ev.activity?.trim()) continue;
+            const slotIndex = ev.startSlot ?? ev.slot_index ?? i;
             await sql`INSERT INTO itinerary_slots (day_id, slot_index, time_label, activity, address, span, reservation_id)
-              VALUES (${day.id}, ${si}, ${s.time || ''}, ${s.activity || ''}, ${s.address || ''}, ${s.span ?? 1}, ${s.reservationId ?? null})`;
+              VALUES (${day.id}, ${slotIndex}, ${ev.time || ''}, ${ev.activity || ''}, ${ev.address || ''}, ${ev.span ?? 1}, ${ev.reservationId ?? null})`;
           }
         }
         break;
