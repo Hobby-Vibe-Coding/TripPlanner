@@ -445,9 +445,10 @@ table.t tfoot td {
   left: -1px; top: 50%; transform: translateY(-50%);
   width: 10px; height: 10px; border-radius: 50%; background: #e53935;
 }
-/* Past event dimming */
-.itin-event.filled.slot-past { opacity: 0.3; filter: grayscale(0.5); }
-.itin-event.filled.slot-past .event-textarea { pointer-events: auto; }
+/* Past event dimming (keep full fill so grid lines don't show through) */
+.itin-event.filled.slot-past { filter: grayscale(0.35); }
+.itin-event.filled.slot-past .event-textarea { color: var(--ink-soft); pointer-events: auto; }
+.itin-event.filled.slot-past .slot-time-badge { color: var(--ink-soft); }
 @media print { .itin-now-line { display: none !important; } }
 /* Reservation badge inside itinerary slot */
 .slot-res-badge {
