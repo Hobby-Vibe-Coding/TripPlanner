@@ -359,6 +359,83 @@ export default async function handler(req, res) {
         break;
       }
 
+      // ── Traveler schedule ─────────────────────────────────────────────────────
+      case "setTravelerSchedule": {
+        const { tripId, travelerName, joinDay, leaveDay } = p;
+        if (!tripId || !travelerName) return res.status(400).json({ error: "tripId and travelerName required" });
+        if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
+        const [row] = await sql`SELECT traveler_schedule FROM trips WHERE id = ${tripId}`;
+        const schedule = row?.traveler_schedule || {};
+        if (joinDay == null && leaveDay == null) {
+          delete schedule[travelerName];
+        } else {
+          schedule[travelerName] = { joinDay: joinDay ?? 1, leaveDay: leaveDay ?? null };
+        }
+        await sql`UPDATE trips SET traveler_schedule = ${JSON.stringify(schedule)} WHERE id = ${tripId}`;
+        break;
+      }
+
+      // ── Tasks ─────────────────────────────────────────────────────────────────
+      case "addTask": {
+        const { tripId, task } = p;
+        if (!task?.id) return res.status(400).json({ error: "task.id required" });
+        if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
+        const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM trip_tasks WHERE trip_id = ${tripId}`;
+        await sql`INSERT INTO trip_tasks (id, trip_id, title, assigned_to, status, due_date, task_order)
+          VALUES (${task.id}, ${tripId}, ${task.title || ''}, ${task.assignedTo || ''}, 'pending', ${task.dueDate || ''}, ${c})`;
+        break;
+      }
+
+      case "updateTask": {
+        const { taskId, fields } = p;
+        const handlers = {
+          title:      (v) => sql`UPDATE trip_tasks SET title       = ${v ?? ''}      WHERE id = ${taskId}`,
+          assignedTo: (v) => sql`UPDATE trip_tasks SET assigned_to = ${v ?? ''}      WHERE id = ${taskId}`,
+          status:     (v) => sql`UPDATE trip_tasks SET status      = ${v ?? 'pending'} WHERE id = ${taskId}`,
+          dueDate:    (v) => sql`UPDATE trip_tasks SET due_date    = ${v ?? ''}      WHERE id = ${taskId}`,
+        };
+        for (const [key, val] of Object.entries(fields || {})) {
+          if (handlers[key]) await handlers[key](val);
+        }
+        break;
+      }
+
+      case "toggleTask": {
+        await sql`UPDATE trip_tasks SET status = CASE WHEN status = 'done' THEN 'pending' ELSE 'done' END WHERE id = ${p.taskId}`;
+        break;
+      }
+
+      case "deleteTask": {
+        await sql`DELETE FROM trip_tasks WHERE id = ${p.taskId}`;
+        break;
+      }
+
+      // ── Announcements ─────────────────────────────────────────────────────────
+      case "addAnnouncement": {
+        const { tripId, announcement: a } = p;
+        if (!a?.id) return res.status(400).json({ error: "announcement.id required" });
+        if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
+        const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM trip_announcements WHERE trip_id = ${tripId}`;
+        await sql`INSERT INTO trip_announcements (id, trip_id, ann_text, pinned, ann_order)
+          VALUES (${a.id}, ${tripId}, ${a.text || ''}, ${a.pinned || false}, ${c})`;
+        break;
+      }
+
+      case "updateAnnouncement": {
+        await sql`UPDATE trip_announcements SET ann_text = ${p.text || ''} WHERE id = ${p.announcementId}`;
+        break;
+      }
+
+      case "toggleAnnouncementPin": {
+        await sql`UPDATE trip_announcements SET pinned = NOT pinned WHERE id = ${p.announcementId}`;
+        break;
+      }
+
+      case "deleteAnnouncement": {
+        await sql`DELETE FROM trip_announcements WHERE id = ${p.announcementId}`;
+        break;
+      }
+
       default:
         return res.status(400).json({ error: `Unknown mutation type: ${type}` });
     }

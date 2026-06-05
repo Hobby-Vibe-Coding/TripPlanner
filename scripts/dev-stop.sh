@@ -46,6 +46,19 @@ fi
 # ── Optionally stop PostgreSQL ─────────────────────────────────────────────────
 if [ "$STOP_PG" = true ]; then
   step "Stopping PostgreSQL"
+  ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+  COMPOSE_FILE="$ROOT/docker-compose.yml"
+  PG_STOPPED=false
+
+  # Docker compose down (preferred when compose file is present)
+  if command -v docker &>/dev/null && [ -f "$COMPOSE_FILE" ]; then
+    echo -e "  ${GRAY}Running docker compose down...${NC}"
+    docker compose -f "$COMPOSE_FILE" down &>/dev/null \
+      && ok "PostgreSQL stopped (docker compose down)" && PG_STOPPED=true \
+      || warn "docker compose down failed"
+  fi
+
+  if [ "$PG_STOPPED" = false ]; then
   OS="$(uname)"
   if [ "$OS" = "Darwin" ]; then
     PG_SERVICE=$(brew services list 2>/dev/null | awk '/^postgresql/ {print $1}' | head -1)
@@ -66,6 +79,7 @@ if [ "$STOP_PG" = true ]; then
       fi
     fi
   fi
+  fi  # PG_STOPPED = false
 else
   echo ""
   echo -e "  ${GRAY}PostgreSQL is still running.${NC}"

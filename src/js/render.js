@@ -20,11 +20,12 @@ const tripDuration  = t     => window.tripDuration(t);
 const showLoginModal = t    => window.showLoginModal(t);
 const isEditing   = () => window.isEditing();
 const isShareMode = () => window.isShareMode();
+const renderDocuments = t => window.renderDocuments(t);
 
 
-const ALL_TABS    = ["overview","itinerary","expenses","packing","reservations","notes","photos"];
+const ALL_TABS    = ["overview","itinerary","expenses","packing","reservations","notes","photos","documents"];
 const TAB_LABELS  = { overview:"Overview", itinerary:"Itinerary", expenses:"Expenses",
-                      packing:"Packing", reservations:"Reservations", notes:"Notes", photos:"Photos" };
+                      packing:"Packing", reservations:"Reservations", notes:"Notes", photos:"Photos", documents:"Docs" };
 const NOTE_COLORS = ["#fef9c3","#dcfce7","#dbeafe","#fce7f3","#ffe4e6"];
 
 // -------- RENDER --------
@@ -44,13 +45,26 @@ function render() {
     window.startItinClock?.();
   }
   if (route.view === "trip" && route.tab === "photos") window.setupPhotoLazyLoad?.();
+  if (route.view === "trip" && route.tab === "documents") {
+    const t = currentTrip();
+    if (t && state._docs?.[t.id] === undefined) window.loadDocuments?.(t.id);
+  }
   if (route.view === "home") setupPastYearScrubber();
 }
 
 function autoGrow(el) {
   if (el.dataset.autogrowBound) return;
   el.dataset.autogrowBound = "1";
-  const adjust = () => { el.style.height = "auto"; el.style.height = (el.scrollHeight + 2) + "px"; };
+  // Defer height read to rAF so it runs inside the browser's render cycle,
+  // not as a forced mid-event layout flush.
+  let rafId;
+  const adjust = () => {
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      el.style.height = "0";
+      el.style.height = (el.scrollHeight + 2) + "px";
+    });
+  };
   el.addEventListener("input", adjust);
   adjust();
 }
@@ -241,6 +255,7 @@ function renderTrip() {
         ${allowedTabs.includes("expenses") && _myTraveler ? `<div class="stat"><div class="stat-label">Your expenses</div><div class="stat-value" id="stat-my-expenses">${fmtCurrency(myExpensesTotal)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">as ${escapeHtml(_myTraveler)}</div></div>` : ""}
         ${allowedTabs.includes("packing") ? `<div class="stat"><div class="stat-label">Packed</div><div class="stat-value" id="stat-packed">${packDone}/${packTotal}</div></div>` : ""}
         ${allowedTabs.includes("reservations") ? `<div class="stat"><div class="stat-label">To book</div><div class="stat-value" id="stat-to-book">${reservOpen}</div></div>` : ""}
+        ${(() => { const tasks = t.tasks || []; const pend = tasks.filter(tk => tk.status !== 'done').length; return tasks.length ? `<div class="stat"><div class="stat-label">Tasks</div><div class="stat-value" id="stat-tasks">${pend}/${tasks.length}</div></div>` : ""; })()}
         ${t.timezone ? `<div class="stat" id="tz-stat"><div class="stat-label">Local time</div><div class="stat-value" id="tz-clock">—</div></div>` : ""}
       </div>
     </div>
@@ -253,6 +268,7 @@ function renderTrip() {
       ${allowedTabs.includes("reservations") ? tabBtn("reservations", "Reservations", svgIcon("bookmark")) : ""}
       ${allowedTabs.includes("notes") ? tabBtn("notes", "Notes", svgIcon("edit")) : ""}
       ${allowedTabs.includes("photos") ? tabBtn("photos", "Photos", svgIcon("camera")) : ""}
+      ${(!isShareMode() && allowedTabs.includes("documents")) ? tabBtn("documents", "Docs", svgIcon("lock")) : ""}
     </div>
 
     ${tab === "overview" ? renderOverview(t) : ""}
@@ -262,6 +278,7 @@ function renderTrip() {
     ${tab === "reservations" ? `<div id="reservations-root">${renderReservations(t)}</div>` : ""}
     ${tab === "notes" ? renderNotes(t) : ""}
     ${tab === "photos" ? renderPhotos(t) : ""}
+    ${tab === "documents" && !isShareMode() ? renderDocuments(t) : ""}
   `;
 }
 
@@ -281,7 +298,8 @@ function svgIcon(name) {
     camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
     qr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/><path d="M14 14h3v3"/><path d="M17 17h4"/><path d="M17 21v-4"/><path d="M14 17v4"/></svg>',
     sparkle:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/><path d="M5 3l.75 2.75L8.5 7l-2.75.75L5 10.5l-.75-2.75L1.5 7l2.75-.75L5 3z" opacity=".5"/><path d="M19 14l.75 2.75L22.5 18l-2.75.75L19 21.5l-.75-2.75L15.5 18l2.75-.75L19 14z" opacity=".5"/></svg>',
-    image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
+    image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>',
+    lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
   };
   return icons[name] || "";
 }

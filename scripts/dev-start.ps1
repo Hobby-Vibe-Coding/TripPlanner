@@ -113,26 +113,30 @@ $pgStarted = $false
 if (Get-Command "docker" -ErrorAction SilentlyContinue) {
     $dockerInfo = & docker info 2>&1
     if ($LASTEXITCODE -eq 0) {
-        # Docker is running - check container state
-        $containerStatus = (& docker ps -a --filter "name=^postgres-db$" --format "{{.Status}}" 2>&1).Trim()
-
-        if ($containerStatus -like "Up*") {
-            OK "PostgreSQL (Docker: postgres-db) already running"
-            $pgStarted = $true
-        } elseif ($containerStatus -ne "") {
-            # Container exists but is stopped
-            Write-Host "  Starting Docker container postgres-db..." -ForegroundColor DarkGray
-            & docker start postgres-db 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) { OK "PostgreSQL (Docker: postgres-db) started"; $pgStarted = $true }
-            else { Warn "docker start postgres-db failed -- will try other methods" }
+        $composeFile = Join-Path $ROOT "docker-compose.yml"
+        if (Test-Path $composeFile) {
+            # docker compose up -d is idempotent: creates, starts, or no-ops as needed
+            Write-Host "  Running docker compose up -d..." -ForegroundColor DarkGray
+            $prevEap = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+            & docker compose -f $composeFile up -d 2>&1 | Out-Null
+            $dcExit = $LASTEXITCODE
+            $ErrorActionPreference = $prevEap
+            if ($dcExit -eq 0) { OK "PostgreSQL (Docker) started via docker compose"; $pgStarted = $true }
+            else { Warn "docker compose up failed -- will try other methods" }
         } else {
-            # Container does not exist -- create it via docker compose
-            $composeFile = Join-Path $ROOT "docker-compose.yml"
-            if (Test-Path $composeFile) {
-                Write-Host "  Creating postgres-db via docker compose..." -ForegroundColor DarkGray
-                & docker compose -f $composeFile up -d 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) { OK "PostgreSQL (Docker) started via docker-compose.yml"; $pgStarted = $true }
-                else { Warn "docker compose up failed -- will try other methods" }
+            # No compose file -- fall back to managing the container directly
+            $containerStatus = "$((& docker ps -a --filter "name=^postgres-db$" --format "{{.Status}}" 2>&1))".Trim()
+            if ($containerStatus -like "Up*") {
+                OK "PostgreSQL (Docker: postgres-db) already running"
+                $pgStarted = $true
+            } elseif ($containerStatus -ne "") {
+                Write-Host "  Starting Docker container postgres-db..." -ForegroundColor DarkGray
+                $prevEap = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+                & docker start postgres-db 2>&1 | Out-Null
+                $dcExit = $LASTEXITCODE
+                $ErrorActionPreference = $prevEap
+                if ($dcExit -eq 0) { OK "PostgreSQL (Docker: postgres-db) started"; $pgStarted = $true }
+                else { Warn "docker start postgres-db failed -- will try other methods" }
             } else {
                 Warn "postgres-db container not found and no docker-compose.yml present"
             }

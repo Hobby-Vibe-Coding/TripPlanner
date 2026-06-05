@@ -131,3 +131,45 @@ CREATE TABLE IF NOT EXISTS notes (
   note_text  TEXT NOT NULL DEFAULT '',
   note_order INTEGER NOT NULL DEFAULT 0
 );
+
+-- ── Traveler schedule (join/leave days) ────────────────────────────────────────
+-- Stored as JSONB column on trips: { "Daddy": { joinDay: 2, leaveDay: 5 }, ... }
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS traveler_schedule JSONB NOT NULL DEFAULT '{}';
+
+-- ── Tasks ──────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trip_tasks (
+  id          TEXT PRIMARY KEY,
+  trip_id     TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL DEFAULT '',
+  assigned_to TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT 'pending',
+  due_date    TEXT NOT NULL DEFAULT '',
+  task_order  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_trip_tasks_trip ON trip_tasks(trip_id);
+
+-- ── Announcements ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trip_announcements (
+  id        TEXT PRIMARY KEY,
+  trip_id   TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  ann_text  TEXT NOT NULL DEFAULT '',
+  pinned    BOOLEAN NOT NULL DEFAULT FALSE,
+  ann_order INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_trip_announcements_trip ON trip_announcements(trip_id);
+
+-- ── Document Vault ─────────────────────────────────────────────────────────────
+-- blob_url is the Vercel Blob internal URL — never sent to clients directly.
+-- All file access goes through /api/docs/file/:id which verifies JWT ownership.
+CREATE TABLE IF NOT EXISTS documents (
+  id          TEXT PRIMARY KEY,
+  trip_id     TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  filename    TEXT NOT NULL DEFAULT '',
+  label       TEXT NOT NULL DEFAULT '',
+  mime_type   TEXT NOT NULL DEFAULT '',
+  size_bytes  INTEGER NOT NULL DEFAULT 0,
+  blob_url    TEXT NOT NULL DEFAULT '',
+  uploaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_documents_trip ON documents(trip_id, user_id);

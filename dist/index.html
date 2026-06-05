@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trip Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<link rel="icon" href="/assets/favicon-DvUGTLhF.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/favicon-DvUGTLhF.svg">
+<link rel="manifest" href="/assets/manifest-OkoXT_b9.json">
+<meta name="theme-color" content="#009eb0">
+  <script type="module" crossorigin src="/assets/index-BD8bSiE0.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CR0egpdG.css">
+</head>
+<body>
+
+<nav class="nav no-print">
+  <div class="brand" onclick="if(!isShareMode()) goHome()">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 21h18M5 21V11l7-7 7 7v10M9 21v-6h6v6"></path>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">Trip Planner <span class="brand-tag">~ wanderwise</span></div>
+    </div>
+  </div>
+  <div class="nav-actions">
+    <button class="icon-btn" title="Settings, themes, export/import" onclick="openSettings()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </button>
+    <button class="user-chip share-hidden" id="user-btn" title="Sign out" onclick="openUserMenu()" style="display:none;">
+      <span class="user-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </span>
+      <span id="user-label"></span>
+    </button>
+  </div>
+</nav>
+<div id="share-banner" class="share-banner no-print" style="display:none;"></div>
+
+<main class="app" id="app-root"></main>
+<div id="print-root" class="print-show"></div>
+<div id="modal-root"></div>
+
+</body>
+</html>

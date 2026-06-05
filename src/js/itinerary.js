@@ -106,10 +106,19 @@ function renderItinerary(t) {
     const d = t.itinerary[dIdx];
     let dayDate = "";
     if (startDate) { const dd = new Date(startDate); dd.setDate(dd.getDate() + dIdx); dayDate = dd.toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" }); }
+    const dayNum = dIdx + 1;
+    const travSched = t.travelerSchedule || {};
+    const joins = Object.entries(travSched).filter(([, s]) => s.joinDay === dayNum).map(([n]) => n);
+    const leaves = Object.entries(travSched).filter(([, s]) => s.leaveDay === dayNum).map(([n]) => n);
+    const schedHtml = [
+      ...joins.map(n => `<div class="itin-trav-sched join">👋 ${escapeHtml(n)}</div>`),
+      ...leaves.map(n => `<div class="itin-trav-sched leave">${escapeHtml(n)} ↗</div>`)
+    ].join('');
     cells += `
       <div class="itin-cell daycol" style="grid-row:1; grid-column:${colPos+2};">
         <div class="dnum">Day ${dIdx+1}</div>
         ${dayDate ? `<div class="ddate">${dayDate}</div>`:""}
+        ${schedHtml}
         <input class="theme-in" value="${escapeHtml(d.theme||"")}" placeholder="Day theme..." onchange="updateDayTheme(${dIdx}, this.value)" />
       </div>`;
   });

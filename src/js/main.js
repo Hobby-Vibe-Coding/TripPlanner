@@ -11,6 +11,7 @@ import './photos.js';
 import './expenses.js';
 import './itinerary.js';
 import './overview.js';
+import './documents.js';
 import './share.js';
 import './settings.js';
 import './trips.js';

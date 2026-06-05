@@ -100,23 +100,23 @@ PG_STARTED=false
 
 # ── Option A: Docker (preferred) ──────────────────────────────────────────────
 if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
-  CONTAINER_STATUS=$(docker ps -a --filter "name=^postgres-db$" --format "{{.Status}}" 2>/dev/null || true)
-
-  if [[ "$CONTAINER_STATUS" == Up* ]]; then
-    ok "PostgreSQL (Docker: postgres-db) already running"
-    PG_STARTED=true
-  elif [ -n "$CONTAINER_STATUS" ]; then
-    echo -e "  ${GRAY}Starting Docker container postgres-db...${NC}"
-    docker start postgres-db &>/dev/null && ok "PostgreSQL (Docker: postgres-db) started" && PG_STARTED=true \
-      || warn "docker start postgres-db failed"
+  COMPOSE_FILE="$ROOT/docker-compose.yml"
+  if [ -f "$COMPOSE_FILE" ]; then
+    # docker compose up -d is idempotent: creates, starts, or no-ops as needed
+    echo -e "  ${GRAY}Running docker compose up -d...${NC}"
+    docker compose -f "$COMPOSE_FILE" up -d &>/dev/null \
+      && ok "PostgreSQL (Docker) started via docker compose" && PG_STARTED=true \
+      || warn "docker compose up failed"
   else
-    # Container does not exist — create via docker compose
-    COMPOSE_FILE="$ROOT/docker-compose.yml"
-    if [ -f "$COMPOSE_FILE" ]; then
-      echo -e "  ${GRAY}Creating postgres-db via docker compose...${NC}"
-      docker compose -f "$COMPOSE_FILE" up -d &>/dev/null \
-        && ok "PostgreSQL (Docker) started via docker-compose.yml" && PG_STARTED=true \
-        || warn "docker compose up failed"
+    # No compose file — manage the container directly
+    CONTAINER_STATUS=$(docker ps -a --filter "name=^postgres-db$" --format "{{.Status}}" 2>/dev/null || true)
+    if [[ "$CONTAINER_STATUS" == Up* ]]; then
+      ok "PostgreSQL (Docker: postgres-db) already running"
+      PG_STARTED=true
+    elif [ -n "$CONTAINER_STATUS" ]; then
+      echo -e "  ${GRAY}Starting Docker container postgres-db...${NC}"
+      docker start postgres-db &>/dev/null && ok "PostgreSQL (Docker: postgres-db) started" && PG_STARTED=true \
+        || warn "docker start postgres-db failed"
     else
       warn "postgres-db container not found and no docker-compose.yml present"
     fi

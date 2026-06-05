@@ -418,7 +418,7 @@ input, textarea, select { font-family: inherit; }
   transition: transform 0.18s ease, opacity 0.18s ease;
   position: relative; overflow: hidden;
 }
-.postcard:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.postcard:hover { transform: translateY(-3px); }
 .postcard .stamp {
   position: absolute; top: 10px; right: 12px;
   background: var(--accent-soft);
@@ -504,7 +504,7 @@ input, textarea, select { font-family: inherit; }
   color: var(--ink); background: var(--surface-solid);
   border-color: var(--line);
 }
-.btn:hover { border-color: var(--line-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn:hover { border-color: var(--line-strong); transform: translateY(-1px); }
 .btn.primary {
   background: var(--primary); color: white;
   border-color: var(--primary);

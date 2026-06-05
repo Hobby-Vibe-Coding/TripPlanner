@@ -21,6 +21,7 @@ export async function loadStateFromDB(sql, userId) {
     settingsRows, tripRows, travRows, groupRows, gmRows,
     dayRows, slotRows, expRows, partRows,
     catRows, itemRows, resRows, noteRows,
+    taskRows, annRows,
   ] = await Promise.all([
     sql`SELECT theme, currency FROM user_settings WHERE user_id = ${userId}`,
     sql`SELECT * FROM trips WHERE user_id = ${userId} ORDER BY trip_order, created_at`,
@@ -35,6 +36,8 @@ export async function loadStateFromDB(sql, userId) {
     sql`SELECT pi.* FROM packing_items pi JOIN packing_categories pc ON pi.category_id = pc.id JOIN trips t ON pc.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY pi.category_id, pi.pos`,
     sql`SELECT r.* FROM reservations r JOIN trips t ON r.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY r.trip_id, r.res_order`,
     sql`SELECT n.* FROM notes n JOIN trips t ON n.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY n.trip_id, n.note_order`,
+    sql`SELECT tk.* FROM trip_tasks tk JOIN trips t ON tk.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY tk.trip_id, tk.task_order`,
+    sql`SELECT a.* FROM trip_announcements a JOIN trips t ON a.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY a.trip_id, a.pinned DESC, a.ann_order`,
   ]);
 
   // Build lookup maps
@@ -53,6 +56,8 @@ export async function loadStateFromDB(sql, userId) {
   const itemMap  = byTrip(itemRows, 'category_id');
   const resMap   = byTrip(resRows);
   const noteMap  = byTrip(noteRows);
+  const taskMap  = byTrip(taskRows);
+  const annMap   = byTrip(annRows);
 
   const trips = tripRows.map(tr => {
     const groups = (groupMap[tr.id] || []).map(g => ({
@@ -108,8 +113,16 @@ export async function loadStateFromDB(sql, userId) {
       },
       myTraveler: tr.my_traveler || null,
       timeSlots: Array.isArray(tr.time_slots) ? tr.time_slots : [],
+      travelerSchedule: tr.traveler_schedule || {},
       travelers: (travMap[tr.id] || []).map(r => r.name),
       groups, itinerary, expenses, packing, reservations, notes,
+      tasks: (taskMap[tr.id] || []).map(tk => ({
+        id: tk.id, title: tk.title, assignedTo: tk.assigned_to,
+        status: tk.status, dueDate: tk.due_date || '',
+      })),
+      announcements: (annMap[tr.id] || []).map(a => ({
+        id: a.id, text: a.ann_text, pinned: a.pinned,
+      })),
     };
   });
 
@@ -124,7 +137,7 @@ export async function insertTripRows(sql, userId, trip, order) {
       (id, user_id, title, destination, dest_lat, dest_lng, emoji,
        start_date, end_date, budget, timezone, created_at, memory_line,
        drive_folder_id, drive_thumbnail_id, drive_thumbnail_url,
-       my_traveler, time_slots, trip_order)
+       my_traveler, time_slots, traveler_schedule, trip_order)
     VALUES (
       ${trip.id}, ${userId},
       ${trip.title || ''}, ${trip.destination || ''},
@@ -139,6 +152,7 @@ export async function insertTripRows(sql, userId, trip, order) {
       ${trip.driveFolder?.thumbnailUrl ?? null},
       ${trip.myTraveler ?? null},
       ${JSON.stringify(trip.timeSlots || [])},
+      ${JSON.stringify(trip.travelerSchedule || {})},
       ${order}
     )`;
 
@@ -208,6 +222,20 @@ export async function insertTripRows(sql, userId, trip, order) {
     const n = trip.notes[ni];
     if (!n.id) continue;
     await sql`INSERT INTO notes (id, trip_id, note_text, note_order) VALUES (${n.id}, ${trip.id}, ${n.text || ''}, ${ni})`;
+  }
+
+  for (let ti = 0; ti < (trip.tasks || []).length; ti++) {
+    const tk = trip.tasks[ti];
+    if (!tk.id) continue;
+    await sql`INSERT INTO trip_tasks (id, trip_id, title, assigned_to, status, due_date, task_order)
+      VALUES (${tk.id}, ${trip.id}, ${tk.title || ''}, ${tk.assignedTo || ''}, ${tk.status || 'pending'}, ${tk.dueDate || ''}, ${ti})`;
+  }
+
+  for (let ai = 0; ai < (trip.announcements || []).length; ai++) {
+    const a = trip.announcements[ai];
+    if (!a.id) continue;
+    await sql`INSERT INTO trip_announcements (id, trip_id, ann_text, pinned, ann_order)
+      VALUES (${a.id}, ${trip.id}, ${a.text || ''}, ${a.pinned || false}, ${ai})`;
   }
 }
 

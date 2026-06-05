@@ -62,15 +62,16 @@ function removeNote(id) {
   render();
 }
 
+const _noteTimers = {};
 function updateNote(id, text) {
   if (!guardEdit()) return;
   const t = currentTrip(); if (!t) return;
   if (!Array.isArray(t.notes)) t.notes = getNotes(t);
   const n = t.notes.find(n => n.id === id);
-  if (n) {
-    n.text = text;
-    mutate({ type: 'updateNote', noteId: id, text });
-  }
+  if (!n) return;
+  n.text = text; // update local state immediately
+  clearTimeout(_noteTimers[id]);
+  _noteTimers[id] = setTimeout(() => mutate({ type: 'updateNote', noteId: id, text }), 400);
 }
 
 Object.assign(window, { getNotes, renderNotes, addNote, removeNote, updateNote });

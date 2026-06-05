@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "SilentlyContinue"
+$ROOT = Resolve-Path (Join-Path $PSScriptRoot "..")
 
 function Write-Step  ([string]$msg) { Write-Host "`n> $msg" -ForegroundColor Cyan }
 function Write-OK    ([string]$msg) { Write-Host "  OK  $msg" -ForegroundColor Green }
@@ -62,11 +63,19 @@ if ($StopPostgres) {
 
     # Try Docker first
     if (Get-Command "docker" -ErrorAction SilentlyContinue) {
-        $cs = (& docker ps --filter "name=^postgres-db$" --format "{{.Status}}" 2>&1).Trim()
-        if ($cs -like "Up*") {
-            & docker stop postgres-db 2>&1 | Out-Null
-            Write-OK "Stopped Docker container postgres-db"
-            $stopped = $true
+        $composeFile = Join-Path $ROOT "docker-compose.yml"
+        if (Test-Path $composeFile) {
+            Write-Host "  Running docker compose down..." -ForegroundColor DarkGray
+            & docker compose -f $composeFile down *>$null
+            if ($LASTEXITCODE -eq 0) { Write-OK "PostgreSQL stopped (docker compose down)"; $stopped = $true }
+            else { Write-Warn "docker compose down failed" }
+        } else {
+            $cs = "$((& docker ps --filter "name=^postgres-db$" --format "{{.Status}}" 2>&1))".Trim()
+            if ($cs -like "Up*") {
+                & docker stop postgres-db *>$null
+                Write-OK "Stopped Docker container postgres-db"
+                $stopped = $true
+            }
         }
     }
 

@@ -106,12 +106,17 @@ function duplicateTrip(id, ev) {
 }
 
 // -------- TRIP-LEVEL UPDATES --------
+const _tripFieldTimers = {};
 function updateTrip(key, value) {
   if (!guardEdit()) return;
   const t = currentTrip(); if (!t) return;
   t[key] = value;
-  mutate({ type: 'updateTripFields', tripId: t.id, fields: { [key]: value } });
   if (["budget","timezone"].includes(key)) render();
+  clearTimeout(_tripFieldTimers[key]);
+  _tripFieldTimers[key] = setTimeout(
+    () => mutate({ type: 'updateTripFields', tripId: t.id, fields: { [key]: value } }),
+    400
+  );
 }
 function updateTripDates(which, value) {
   if (!guardEdit()) return;

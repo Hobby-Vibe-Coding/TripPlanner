@@ -22,15 +22,31 @@ const isEditing   = () => window.isEditing();
 const isShareMode = () => window.isShareMode();
 
 
+// -------- TRAVELER TAG HELPER --------
+function travelerTagHtml(p, t, isMe, editMode) {
+  const schedule = (t.travelerSchedule || {})[p];
+  const badge = schedule ? ` <span class="trav-schedule-badge">Day ${schedule.joinDay}–${schedule.leaveDay ?? '?'}</span>` : '';
+  const schedBtn = editMode ? `<button class="trav-schedule-btn" onclick="event.stopPropagation();openTravelerScheduleModal('${escapeAttr(p)}','${escapeAttr(t.id)}')" title="Set join/leave days">📅</button>` : '';
+  const removeBtn = `<button class="trav-remove-x" onclick="event.stopPropagation();removeTraveler('${escapeAttr(p)}')" title="Remove ${escapeAttr(p)}">✕</button>`;
+  const click = editMode ? "" : `onclick="setMyTraveler('${escapeAttr(p)}')"`;
+  const title = editMode ? "" : `title="${isMe ? 'This is you! Click to unset.' : 'Click to set as you'}"`;
+  return `<span class="tag ${isMe ? 'is-me' : ''}" ${click} ${title}>${escapeHtml(p)}${badge}${isMe ? ' <span class="me-badge">(You)</span>' : ''}${schedBtn}${removeBtn}</span>`;
+}
+
 // -------- OVERVIEW TAB --------
 function renderOverview(t) {
   const totalSpend = (t.expenses || []).reduce((s, e) => s + (parseFloat(e.cost) || 0), 0);
   const numPeople = Math.max(1, (t.travelers || []).length);
   const nextRes = (t.reservations || []).filter(r => r.status !== "booked" && r.status !== "cancelled" && r.name?.trim()).slice(0, 3);
+  const nextTasks = (t.tasks || []).filter(tk => tk.status !== 'done' && tk.title?.trim()).slice(0, 3);
   const themes = (t.itinerary || []).map((d, i) => ({ i: i+1, theme: d.theme })).filter(x => x.theme);
   const shareReadOnly = document.documentElement.getAttribute("data-share") === "read";
+  const pinned = (t.announcements || []).filter(a => a.pinned);
+  const unpinned = (t.announcements || []).filter(a => !a.pinned);
+  const canEdit = isEditing();
   return `
     <div class="panel">
+      ${renderAnnouncementsSection(t, pinned, unpinned, shareReadOnly, canEdit)}
       <div class="panel-head">
         <h3>At a glance</h3>
       </div>
@@ -68,21 +84,11 @@ function renderOverview(t) {
               if (!members.length) return;
               html += `<div style="margin-bottom:8px;">
                 <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:4px;">${escapeHtml(g.name)}</div>
-                <div>${members.map(p => {
-                  const isMe = getMyTraveler(t.id) === p;
-                  const click = travEditMode ? "" : `onclick="setMyTraveler('${escapeAttr(p)}')"`;
-                  const title = travEditMode ? "" : `title="${isMe?'This is you! Click to unset.':'Click to set as you'}"`;
-                  return `<span class="tag ${isMe?'is-me':''}" ${click} ${title}>${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}<button class="trav-remove-x" onclick="event.stopPropagation();removeTraveler('${escapeAttr(p)}')" title="Remove ${escapeAttr(p)}">✕</button></span>`;
-                }).join(" ")}</div>
+                <div>${members.map(p => travelerTagHtml(p, t, getMyTraveler(t.id) === p, travEditMode)).join(" ")}</div>
               </div>`;
             });
             if (ungrouped.length) {
-              html += `<div>${ungrouped.map(p => {
-                const isMe = getMyTraveler(t.id) === p;
-                const click = travEditMode ? "" : `onclick="setMyTraveler('${escapeAttr(p)}')"`;
-                const title = travEditMode ? "" : `title="${isMe?'This is you! Click to unset.':'Click to set as you'}"`;
-                return `<span class="tag ${isMe?'is-me':''}" ${click} ${title}>${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}<button class="trav-remove-x" onclick="event.stopPropagation();removeTraveler('${escapeAttr(p)}')" title="Remove ${escapeAttr(p)}">✕</button></span>`;
-              }).join(" ")}</div>`;
+              html += `<div>${ungrouped.map(p => travelerTagHtml(p, t, getMyTraveler(t.id) === p, travEditMode)).join(" ")}</div>`;
             }
             html += `</div>`;
             return html;
@@ -242,16 +248,29 @@ function renderOverview(t) {
         </div>
         ` : ""}
 
-        ${nextRes.length ? `
+        ${(nextRes.length || nextTasks.length) ? `
         <div class="stat overview-needs" style="padding:16px;">
-          <div class="stat-label">⚠️ Need to book</div>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            ${nextRes.map(r => `<div class="text-sm">• ${escapeHtml(r.name)}${r.dueDate ? ` <span class="muted">by ${fmtBookingTime(r.dueDate)}</span>`:""}</div>`).join("")}
-          </div>
-          <button class="btn sm" style="margin-top:10px;" onclick="setTab('reservations')">View all →</button>
+          ${nextTasks.length ? `
+            <div class="stat-label">📋 To Do</div>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+              ${nextTasks.map(tk => `<div class="text-sm">• ${escapeHtml(tk.title)}${tk.assignedTo ? ` <span class="tag" style="font-size:10px;padding:1px 6px;margin-left:4px;">${escapeHtml(tk.assignedTo)}</span>` : ''}${tk.dueDate ? ` <span class="muted">by ${fmtBookingTime(tk.dueDate)}</span>` : ''}</div>`).join("")}
+            </div>
+            <button class="btn sm" style="margin-top:10px;" onclick="document.getElementById('tasks-section')?.scrollIntoView({behavior:'smooth'})">View all →</button>
+          ` : ""}
+          ${(nextRes.length && nextTasks.length) ? `<div style="border-top:1px solid var(--line);margin:12px 0;"></div>` : ""}
+          ${nextRes.length ? `
+            <div class="stat-label">⚠️ To Book</div>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+              ${nextRes.map(r => `<div class="text-sm">• ${escapeHtml(r.name)}${r.dueDate ? ` <span class="muted">by ${fmtBookingTime(r.dueDate)}</span>`:""}</div>`).join("")}
+            </div>
+            <button class="btn sm" style="margin-top:10px;" onclick="setTab('reservations')">View all →</button>
+          ` : ""}
         </div>
         ` : ""}
       </div>
+
+      ${renderTasksSection(t, shareReadOnly, canEdit)}
+      ${renderAnnouncementsManage(t, pinned, unpinned, shareReadOnly, canEdit)}
     </div>
   `;
 }
@@ -499,6 +518,257 @@ function computeMyData(t) {
   return { myOwed, myPaid, mySettled, myUnsettled, owesMe, iOwe, net };
 }
 
+// -------- ANNOUNCEMENTS (pinned banners above grid) --------
+function renderAnnouncementsSection(t, pinned, unpinned, shareReadOnly, canEdit) {
+  if (!pinned.length) return '';
+  return `
+    <div class="ann-pinned-section">
+      ${pinned.map(a => `
+        <div class="ann-banner">
+          <span class="ann-pin-icon">📌</span>
+          <div class="ann-text">${escapeHtml(a.text)}</div>
+          ${canEdit ? `<div class="ann-controls">
+            <button class="ann-btn" onclick="toggleAnnouncementPin('${escapeAttr(a.id)}','${escapeAttr(t.id)}')" title="Unpin">📌</button>
+            <button class="ann-btn" onclick="editAnnouncement('${escapeAttr(a.id)}','${escapeAttr(t.id)}')" title="Edit">✎</button>
+            <button class="ann-btn" onclick="deleteAnnouncement('${escapeAttr(a.id)}','${escapeAttr(t.id)}')" title="Remove" style="color:#c0392b;">✕</button>
+          </div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// -------- ANNOUNCEMENTS (management section below tasks) --------
+function renderAnnouncementsManage(t, pinned, unpinned, shareReadOnly, canEdit) {
+  const all = [...pinned, ...unpinned];
+  if (!all.length && !canEdit) return '';
+  return `
+    <div class="ann-manage-section">
+      <div class="panel-head" style="margin-top:8px;">
+        <h3>Announcements</h3>
+        ${canEdit ? `<button class="btn sm" onclick="addAnnouncement('${escapeAttr(t.id)}')">+ Add</button>` : ''}
+      </div>
+      ${!all.length ? `<div class="muted text-sm" style="padding:8px 0 4px;">No announcements yet. Add one to keep your group in the loop.</div>` : ''}
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${all.map(a => `
+          <div class="ann-item ${a.pinned ? 'ann-item-pinned' : ''}">
+            <span class="ann-item-icon">${a.pinned ? '📌' : '📢'}</span>
+            <span class="ann-item-text">${escapeHtml(a.text)}</span>
+            ${canEdit ? `<div class="ann-controls">
+              <button class="ann-btn" onclick="toggleAnnouncementPin('${escapeAttr(a.id)}','${escapeAttr(t.id)}')" title="${a.pinned ? 'Unpin' : 'Pin'}">${a.pinned ? '📌' : '📍'}</button>
+              <button class="ann-btn" onclick="editAnnouncement('${escapeAttr(a.id)}','${escapeAttr(t.id)}')" title="Edit">✎</button>
+              <button class="ann-btn" onclick="deleteAnnouncement('${escapeAttr(a.id)}','${escapeAttr(t.id)}')" title="Remove" style="color:#c0392b;">✕</button>
+            </div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function addAnnouncement(tripId) {
+  if (!guardEdit()) return;
+  showModal({
+    title: 'New announcement',
+    size: 'sm',
+    body: `<textarea id="ann-text-new" style="width:100%;min-height:80px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical;" placeholder="Type your announcement…"></textarea>
+           <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer;">
+             <input type="checkbox" id="ann-pin-new" /> Pin this announcement
+           </label>`,
+    actions: [
+      { label: 'Post', primary: true, onClick: () => {
+        const text = (document.getElementById('ann-text-new')?.value || '').trim();
+        const pinned = document.getElementById('ann-pin-new')?.checked || false;
+        if (!text) return;
+        const t = (state.trips || []).find(x => x.id === tripId);
+        if (!t) return;
+        const ann = { id: uid(), text, pinned, ann_order: (t.announcements || []).length };
+        t.announcements = [...(t.announcements || []), ann];
+        mutate({ type: 'addAnnouncement', tripId, announcement: ann });
+        closeModal(); render();
+      }},
+      { label: 'Cancel', onClick: closeModal }
+    ]
+  });
+}
+
+function editAnnouncement(annId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const ann = (t.announcements || []).find(a => a.id === annId);
+  if (!ann) return;
+  showModal({
+    title: 'Edit announcement',
+    size: 'sm',
+    body: `<textarea id="ann-text-edit" style="width:100%;min-height:80px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical;">${escapeHtml(ann.text)}</textarea>`,
+    actions: [
+      { label: 'Save', primary: true, onClick: () => {
+        const text = (document.getElementById('ann-text-edit')?.value || '').trim();
+        if (!text) return;
+        ann.text = text;
+        mutate({ type: 'updateAnnouncement', tripId, annId, ann_text: text });
+        closeModal(); render();
+      }},
+      { label: 'Cancel', onClick: closeModal }
+    ]
+  });
+}
+
+function toggleAnnouncementPin(annId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const ann = (t.announcements || []).find(a => a.id === annId);
+  if (!ann) return;
+  ann.pinned = !ann.pinned;
+  mutate({ type: 'toggleAnnouncementPin', tripId, annId });
+  render();
+}
+
+function deleteAnnouncement(annId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  t.announcements = (t.announcements || []).filter(a => a.id !== annId);
+  mutate({ type: 'deleteAnnouncement', tripId, annId });
+  render();
+}
+
+// -------- TASKS --------
+function renderTasksSection(t, shareReadOnly, canEdit) {
+  const tasks = t.tasks || [];
+  const pending = tasks.filter(tk => tk.status !== 'done');
+  if (!tasks.length && !canEdit) return '';
+  return `
+    <div class="tasks-section" id="tasks-section">
+      <div class="panel-head" style="margin-top:8px;">
+        <h3>Tasks <span class="muted text-sm" style="font-weight:400;text-transform:none;letter-spacing:0;">${pending.length} pending</span></h3>
+      </div>
+      <div class="task-list">
+        ${tasks.map(tk => renderTaskRow(tk, t, canEdit)).join('')}
+        ${canEdit ? `
+          <div class="task-add-row">
+            <input id="task-input-${escapeAttr(t.id)}" class="task-add-input" placeholder="New task + Enter"
+                   onkeydown="if(event.key==='Enter'){addTaskFromInput('${escapeAttr(t.id)}')}"/>
+            <select id="task-assignee-${escapeAttr(t.id)}" class="task-assignee-select">
+              <option value="">Unassigned</option>
+              ${(t.travelers || []).map(p => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join('')}
+            </select>
+            <button class="btn sm" onclick="addTaskFromInput('${escapeAttr(t.id)}')">Add</button>
+          </div>
+        ` : (!tasks.length ? '<div class="muted text-sm" style="padding:8px 0;">No tasks yet.</div>' : '')}
+      </div>
+    </div>
+  `;
+}
+
+function renderTaskRow(tk, t, canEdit) {
+  const isDone = tk.status === 'done';
+  return `
+    <div class="task-row ${isDone ? 'task-done' : ''}">
+      ${canEdit
+        ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
+        : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
+      <span class="task-title">${escapeHtml(tk.title)}</span>
+      ${tk.assignedTo ? `<span class="tag task-assignee-tag">${escapeHtml(tk.assignedTo)}</span>` : ''}
+      ${tk.dueDate ? `<span class="muted text-sm task-due">by ${fmtBookingTime(tk.dueDate)}</span>` : ''}
+      ${canEdit ? `<button class="icon-btn task-delete" onclick="deleteTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Delete">✕</button>` : ''}
+    </div>
+  `;
+}
+
+function addTaskFromInput(tripId) {
+  if (!guardEdit()) return;
+  const inp = document.getElementById('task-input-' + tripId);
+  const sel = document.getElementById('task-assignee-' + tripId);
+  const title = (inp?.value || '').trim();
+  if (!title) return;
+  const assignedTo = sel?.value || '';
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const task = { id: uid(), title, assignedTo, status: 'pending', dueDate: '', task_order: (t.tasks || []).length };
+  t.tasks = [...(t.tasks || []), task];
+  mutate({ type: 'addTask', tripId, task });
+  render();
+}
+
+function toggleTask(taskId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const task = (t.tasks || []).find(tk => tk.id === taskId);
+  if (!task) return;
+  task.status = task.status === 'done' ? 'pending' : 'done';
+  mutate({ type: 'toggleTask', tripId, taskId });
+  render();
+}
+
+function deleteTask(taskId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  t.tasks = (t.tasks || []).filter(tk => tk.id !== taskId);
+  mutate({ type: 'deleteTask', tripId, taskId });
+  render();
+}
+
+// -------- TRAVELER SCHEDULE MODAL --------
+function openTravelerScheduleModal(name, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const dur = tripDuration(t);
+  const schedule = (t.travelerSchedule || {})[name] || {};
+  showModal({
+    title: `${name} — Availability`,
+    size: 'sm',
+    body: `
+      <p style="color:var(--ink-soft);font-size:13px;margin-bottom:12px;">
+        Set join/leave day to mark partial attendance. Leave blank = full trip.
+      </p>
+      <div style="display:flex;gap:16px;">
+        <label style="flex:1;font-size:13px;">Joins on day
+          <input id="trav-sched-join" type="number" min="1" max="${dur || 99}" value="${schedule.joinDay || ''}"
+                 style="display:block;width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:14px;" placeholder="1"/>
+        </label>
+        <label style="flex:1;font-size:13px;">Leaves after day
+          <input id="trav-sched-leave" type="number" min="1" max="${dur || 99}" value="${schedule.leaveDay || ''}"
+                 style="display:block;width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:14px;" placeholder="${dur || '?'}"/>
+        </label>
+      </div>
+      ${dur ? `<div class="muted text-sm" style="margin-top:8px;">Trip is ${dur} days long (Day 1–${dur})</div>` : ''}
+    `,
+    actions: [
+      { label: 'Save', primary: true, onClick: () => saveTravelerSchedule(name, tripId) },
+      { label: 'Clear (full trip)', onClick: () => clearTravelerSchedule(name, tripId) },
+      { label: 'Cancel', onClick: closeModal }
+    ]
+  });
+}
+
+function saveTravelerSchedule(name, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const joinDay = parseInt(document.getElementById('trav-sched-join')?.value) || null;
+  const leaveDay = parseInt(document.getElementById('trav-sched-leave')?.value) || null;
+  if (!joinDay && !leaveDay) { clearTravelerSchedule(name, tripId); return; }
+  t.travelerSchedule = t.travelerSchedule || {};
+  t.travelerSchedule[name] = { joinDay: joinDay || 1, leaveDay: leaveDay || tripDuration(t) };
+  mutate({ type: 'setTravelerSchedule', tripId, travelerName: name, joinDay: joinDay || 1, leaveDay: leaveDay || tripDuration(t) });
+  closeModal(); render();
+}
+
+function clearTravelerSchedule(name, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  if (t.travelerSchedule) delete t.travelerSchedule[name];
+  mutate({ type: 'setTravelerSchedule', tripId, travelerName: name, joinDay: null, leaveDay: null });
+  closeModal(); render();
+}
+
 Object.assign(window, {
   renderOverview,
   openGroupsModal, renderGroupsModal, dropTravelerIntoGroup,
@@ -506,5 +776,8 @@ Object.assign(window, {
   toggleTravEditMode, addTraveler, removeTraveler,
   getMyTraveler, setMyTraveler, computeMyData,
   showTravelerSelectModal, selectTravelerFromModal,
+  addAnnouncement, editAnnouncement, toggleAnnouncementPin, deleteAnnouncement,
+  addTaskFromInput, toggleTask, deleteTask,
+  openTravelerScheduleModal, saveTravelerSchedule, clearTravelerSchedule,
 });
 

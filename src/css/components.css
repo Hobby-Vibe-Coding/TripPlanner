@@ -374,10 +374,11 @@ table.t tfoot td {
 }
 .itin-cell.slot.filled:hover .drag-handle { opacity: 1; }
 .drag-handle::after {
-  content: ""; width: 30px; height: 3px; border-radius: 3px;
+  content: ""; width: 30px; height: 4px; border-radius: 3px;
   background: var(--primary); opacity: 0.5;
+  transform: scaleY(0.75); transition: opacity 0.15s, transform 0.15s;
 }
-.drag-handle:hover::after { opacity: 1; height: 4px; }
+.drag-handle:hover::after { opacity: 1; transform: scaleY(1); }
 /* Current-time red line */
 .itin-grid { position: relative; }
 .itin-now-line {
@@ -583,8 +584,7 @@ table.t tfoot td {
    =========================================================== */
 .modal-bg {
   position: fixed; inset: 0; z-index: 100;
-  background: rgba(20,20,30,0.45);
-  backdrop-filter: blur(4px);
+  background: rgba(20,20,30,0.6);
   display: grid; place-items: center;
   padding: 20px;
   animation: fadein 0.15s ease;
@@ -1183,7 +1183,7 @@ table.t tfoot td {
   border: 1px solid var(--line);
   transition: transform 0.15s;
 }
-.photo-thumb:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+.photo-thumb:hover { transform: translateY(-2px); }
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--surface-2); min-height: 130px; }
 .photo-thumb-overlay {
   position: absolute; inset: 0; background: rgba(0,0,0,.45);
@@ -1212,7 +1212,7 @@ table.t tfoot td {
 }
 .lightbox-cover-btn {
   position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%);
-  background: rgba(255,255,255,.12); backdrop-filter: blur(8px);
+  background: rgba(255,255,255,.22);
   border: 1px solid rgba(255,255,255,.3); color: white; border-radius: 20px;
   padding: 8px 20px; cursor: pointer; font-size: 13px; white-space: nowrap;
   transition: background .15s; z-index: 310;
@@ -1371,3 +1371,134 @@ table.t tfoot td {
 .hint {
   font-size: 12px; color: var(--ink-soft); margin-top: 4px;
 }
+
+/* ====================================================
+   ANNOUNCEMENTS
+   ==================================================== */
+.ann-pinned-section {
+  display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;
+}
+.ann-banner {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: linear-gradient(135deg, #fff8ec 0%, var(--surface) 100%);
+  border: 1px solid #f0c070; border-left: 4px solid var(--primary, #e07b39);
+  border-radius: 10px; padding: 10px 12px;
+}
+.ann-pin-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.ann-text { flex: 1; font-size: 14px; color: var(--ink); line-height: 1.5; white-space: pre-wrap; }
+.ann-controls { display: flex; gap: 2px; flex-shrink: 0; }
+.ann-btn {
+  background: none; border: none; cursor: pointer; padding: 2px 5px;
+  font-size: 14px; border-radius: 5px; color: var(--ink-soft);
+  transition: background 0.15s;
+}
+.ann-btn:hover { background: var(--surface-2); }
+.ann-manage-section { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--line); }
+.ann-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.ann-item + .ann-item { margin-top: 6px; }
+.ann-item-pinned { border-color: #f0c070; background: #fffbf0; }
+.ann-item-icon { font-size: 15px; flex-shrink: 0; }
+.ann-item-text { flex: 1; font-size: 13px; color: var(--ink); white-space: pre-wrap; }
+
+/* ====================================================
+   TASKS
+   ==================================================== */
+.tasks-section { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--line); }
+.task-list { display: flex; flex-direction: column; }
+.task-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 4px; border-bottom: 1px solid var(--line);
+  font-size: 13px; color: var(--ink);
+}
+.task-row:last-of-type { border-bottom: none; }
+.task-done .task-title { text-decoration: line-through; color: var(--ink-soft); }
+.task-check { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: var(--primary); }
+.task-status-icon { font-size: 14px; color: var(--ink-soft); flex-shrink: 0; width: 16px; text-align: center; }
+.task-title { flex: 1; }
+.task-assignee-tag { font-size: 11px; padding: 1px 7px; flex-shrink: 0; }
+.task-due { flex-shrink: 0; }
+.task-delete {
+  margin-left: auto; opacity: 0; flex-shrink: 0;
+  background: none; border: none; cursor: pointer;
+  color: var(--ink-soft); font-size: 13px; padding: 2px 5px; border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s;
+}
+.task-row:hover .task-delete { opacity: 1; }
+.task-delete:hover { background: var(--surface-2); color: #c0392b; }
+.task-add-row {
+  display: flex; gap: 6px; align-items: center; padding: 8px 0 2px;
+}
+.task-add-input {
+  flex: 1; padding: 6px 10px; border: 1px solid var(--line);
+  border-radius: 8px; font-size: 13px; background: var(--surface-2); min-width: 0;
+}
+.task-add-input:focus { outline: none; border-color: var(--primary); }
+.task-assignee-select {
+  padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px;
+  font-size: 12px; background: var(--surface-2); color: var(--ink); max-width: 120px;
+}
+
+/* ====================================================
+   TRAVELER SCHEDULE BADGE + BUTTON
+   ==================================================== */
+.trav-schedule-badge {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  background: var(--primary-soft, #fff3e0); color: var(--primary, #e07b39);
+  border: 1px solid var(--primary-border, #f5c88a);
+  border-radius: 4px; padding: 0 5px; margin-left: 3px; vertical-align: middle;
+}
+.trav-schedule-btn {
+  background: none; border: none; cursor: pointer; padding: 0 3px;
+  font-size: 13px; margin-left: 2px; border-radius: 4px; vertical-align: middle;
+  opacity: 0.6; transition: opacity 0.15s;
+}
+.trav-schedule-btn:hover { opacity: 1; }
+
+/* ====================================================
+   ITINERARY — TRAVELER JOIN/LEAVE BADGES
+   ==================================================== */
+.itin-trav-sched {
+  font-size: 10px; font-weight: 600; border-radius: 4px;
+  padding: 1px 5px; margin: 2px 0; display: inline-block;
+}
+.itin-trav-sched.join { background: #e8f5e9; color: #2e7d32; }
+.itin-trav-sched.leave { background: #fce4ec; color: #b71c1c; }
+
+/* ====================================================
+   DOCUMENT VAULT
+   ==================================================== */
+.docs-panel { }
+.doc-upload-zone {
+  border: 2px dashed var(--line); border-radius: 12px;
+  padding: 20px 16px; margin-bottom: 16px; text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.doc-upload-zone.drag-over { border-color: var(--primary); background: var(--primary-soft, #fff8ec); }
+.doc-upload-inner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.doc-upload-progress {
+  width: 100%; max-width: 300px; height: 6px;
+  background: var(--line); border-radius: 3px; overflow: hidden;
+}
+.doc-progress-bar { height: 100%; background: var(--primary); border-radius: 3px; width: 100%; transform: scaleX(0); transform-origin: left; transition: transform 0.2s; }
+.doc-grid { display: flex; flex-direction: column; gap: 8px; }
+.doc-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface-2);
+}
+.doc-icon { font-size: 22px; flex-shrink: 0; }
+.doc-info { flex: 1; min-width: 0; }
+.doc-label { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-meta { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+.doc-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.doc-delete-btn {
+  opacity: 0; transition: opacity 0.15s; color: var(--ink-soft);
+  background: none; border: none; cursor: pointer; font-size: 13px;
+  padding: 2px 5px; border-radius: 4px;
+}
+.doc-card:hover .doc-delete-btn { opacity: 1; }
+.doc-delete-btn:hover { color: #c0392b; background: var(--surface); }
