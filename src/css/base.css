@@ -99,6 +99,9 @@ input, textarea, select { font-family: inherit; }
 .icon-btn:hover { background: var(--primary-soft); border-color: var(--line-strong); }
 .icon-btn svg { width: 18px; height: 18px; }
 .icon-btn.unlocked { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+/* Mobile-only "open shared trip" button — hidden on desktop */
+.mobile-join-btn { display: none; }
+@media (max-width: 768px), (display-mode: standalone) { .mobile-join-btn { display: grid; } }
 .user-chip {
   display: flex; align-items: center; gap: 7px;
   padding: 0 12px 0 6px; height: 38px; border-radius: 10px;

@@ -268,8 +268,48 @@ function downloadTripCard(canvas, title) {
   a.click();
 }
 
+function openJoinSharedTrip() {
+  showModal({
+    title: "Open shared trip",
+    size: "sm",
+    body: `
+      <div class="field">
+        <label style="font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block;">Paste a share link or token</label>
+        <textarea id="join-share-input" rows="3"
+          placeholder="https://…/?share=abc123  or just the token"
+          style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;resize:none;box-sizing:border-box;"
+          oninput="document.getElementById('join-share-error').style.display='none'"
+        ></textarea>
+        <div id="join-share-error" style="color:#c0392b;font-size:12px;margin-top:6px;display:none;"></div>
+      </div>
+    `,
+    onOpen: () => { setTimeout(() => document.getElementById("join-share-input")?.focus(), 50); },
+    actions: [
+      { label: "Cancel", onClick: closeModal },
+      { label: "Open trip", primary: true, onClick: () => {
+        const val = (document.getElementById("join-share-input")?.value || "").trim();
+        const errEl = document.getElementById("join-share-error");
+        let token = null;
+        try {
+          const url = new URL(val);
+          token = url.searchParams.get("share");
+        } catch {
+          token = val;
+        }
+        if (!token || !/^[a-f0-9]{24,}$/i.test(token)) {
+          errEl.textContent = "Couldn't find a valid share token. Paste the full link or just the token.";
+          errEl.style.display = "";
+          return;
+        }
+        window.location.href = `/?share=${encodeURIComponent(token)}`;
+      }}
+    ]
+  });
+}
+
 Object.assign(window, {
   updateShareReadLink, updateShareQR, toggleShareQR, openShareModal, copyShareLinkById,
   openHighlightCardModal, generateTripCard, downloadTripCard,
+  openJoinSharedTrip,
 });
 
