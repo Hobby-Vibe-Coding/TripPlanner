@@ -515,15 +515,46 @@ table.t tfoot td {
 }
 .slot-delete-btn:hover { background: #fbe9e7; color: #c0392b; }
 .itin-event.filled:hover .slot-delete-btn { display: inline-flex; }
+/* Details / expand button */
+.slot-details-btn {
+  display: none;
+  background: var(--surface-solid); border: 1px solid var(--line);
+  border-radius: 5px; padding: 2px 5px; font-size: 10px;
+  cursor: pointer; color: var(--ink-soft); line-height: 1.4;
+  align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.slot-details-btn:hover { background: var(--accent-soft); color: var(--primary); border-color: var(--accent); }
+.itin-event.filled:hover .slot-details-btn { display: inline-flex; }
 @media (hover: none) and (pointer: coarse) {
   .itin-event.filled .event-resize-handle { display: none !important; }
-  /* On touch: always show ⏱ and ✕; hide ⠿ (use ⏱ dialog for day/time changes) */
+  /* On touch: always show ⏱, ↗ and ✕; hide ⠿ (use ⏱ dialog for day/time changes) */
   .itin-event.filled .mobile-edit-btn { display: flex; align-items: center; justify-content: center; }
   .itin-event.filled .slot-delete-btn { display: inline-flex; }
+  .itin-event.filled .slot-details-btn { display: inline-flex; }
   .itin-event.filled .move-handle-btn { display: none !important; }
   /* 🔗 only always-visible on touch when already linked; otherwise shown via hover on desktop */
   .itin-event.filled .slot-res-link-btn.linked { display: inline-flex; }
 }
+/* Event details dialog view */
+.event-detail-view { display: flex; flex-direction: column; gap: 10px; }
+.event-detail-activity {
+  font-size: 15px; font-weight: 500; color: var(--ink);
+  line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+}
+.event-detail-row {
+  display: flex; align-items: flex-start; gap: 10px; font-size: 13px;
+}
+.event-detail-label {
+  flex-shrink: 0; width: 80px; font-size: 11px; font-weight: 600;
+  color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em;
+  padding-top: 1px;
+}
+.event-detail-addr-link {
+  color: var(--primary); text-decoration: none; display: flex;
+  align-items: center; gap: 4px;
+}
+.event-detail-addr-link:hover { text-decoration: underline; }
 @media (max-width: 600px) {
   /* Single-day mobile view: fit grid to screen, no horizontal scroll */
   .itin-grid { min-width: 0 !important; }

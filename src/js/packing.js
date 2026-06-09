@@ -252,7 +252,8 @@ function renderWeatherWidget(t) {
 
   const { daily } = cached.data;
   if (!daily) return "";
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const _todayLocal = new Date();
+  const todayStr = `${_todayLocal.getFullYear()}-${String(_todayLocal.getMonth()+1).padStart(2,'0')}-${String(_todayLocal.getDate()).padStart(2,'0')}`;
   const days = daily.time.slice(0, 7).map((date, i) => {
     const d = new Date(date + "T00:00:00");
     const label = d.toLocaleDateString(undefined, { weekday: "short" });

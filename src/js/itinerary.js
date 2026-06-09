@@ -206,6 +206,7 @@ function renderItinerary(t) {
       const mobileEditBtn = v ? `<button class="mobile-edit-btn" onclick="openEventDialog(${dIdx},'${ev.id}')" title="Edit time">⏱</button>` : '';
       const moveBtn       = v && editing ? `<button class="move-handle-btn" onmousedown="event.stopPropagation();startEventMove(event,${dIdx},'${ev.id}')" title="Move event">⠿</button>` : '';
       const deleteBtn     = isFilled && editing ? `<button class="slot-delete-btn" onclick="event.stopPropagation();deleteEvent(${dIdx},'${ev.id}')" title="Remove activity">✕</button>` : '';
+      const detailsBtn    = isFilled ? `<button class="slot-details-btn" onclick="event.stopPropagation();openEventDetailsDialog(${dIdx},'${ev.id}')" title="View details"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>` : '';
 
       dayColHtml += `
              <div class="itin-event ${isFilled ? 'filled' : ''}"
@@ -213,7 +214,7 @@ function renderItinerary(t) {
              data-didx="${dIdx}" data-eid="${ev.id}" data-sidx="${startSlot}" data-span="${span}">
           <div class="event-top-bar">
             <div class="slot-time-badge">${spanLabel}</div>
-            ${isFilled ? `<div class="slot-btns">${mobileEditBtn}${moveBtn}${resLinkBtn}${deleteBtn}</div>` : ''}
+            ${isFilled ? `<div class="slot-btns">${mobileEditBtn}${detailsBtn}${moveBtn}${resLinkBtn}${deleteBtn}</div>` : ''}
           </div>
           <textarea class="event-textarea"
                     onchange="updateEventActivity(${dIdx},'${ev.id}',this.value)"
@@ -757,6 +758,68 @@ function openEventDialog(dIdx, eventId) {
   });
 }
 
+function openEventDetailsDialog(dIdx, eventId) {
+  const t = currentTrip(); if (!t) return;
+  const slots = t.timeSlots || TIME_SLOTS_DEFAULT;
+  const day = t.itinerary[dIdx];
+  const ev = day.events.find(e => e.id === eventId);
+  if (!ev) return;
+  const startDate = parseDate(t.startDate);
+
+  let dayLabel = `Day ${dIdx + 1}`;
+  if (startDate) {
+    const dd = new Date(startDate); dd.setDate(dd.getDate() + dIdx);
+    dayLabel = dd.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  const spanLabel = ev.span > 1
+    ? `${slots[ev.startSlot] || ''} – ${slotEndLabel(slots, ev.startSlot + ev.span)}`
+    : (slots[ev.startSlot] || '');
+
+  const addr = ev.address || '';
+  const mapsUrl = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : '';
+
+  const linkedResId = ev.reservationId || '';
+  const linkedRes = linkedResId ? (t.reservations || []).find(r => r.id === linkedResId) : null;
+
+  const addrHtml = addr ? `
+    <div class="event-detail-row">
+      <span class="event-detail-label">Address</span>
+      <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="event-detail-addr-link">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        ${escapeHtml(addr)}
+      </a>
+    </div>` : '';
+
+  const resHtml = linkedRes ? `
+    <div class="event-detail-row">
+      <span class="event-detail-label">Reservation</span>
+      <span class="slot-res-badge ${linkedRes.status || 'pending'}">
+        ${linkedRes.status === 'booked' ? '✓' : linkedRes.status === 'cancelled' ? '✗' : '⏳'}
+        ${escapeHtml(linkedRes.name)}
+      </span>
+    </div>` : '';
+
+  const activityHtml = ev.activity ? `
+    <div class="event-detail-activity">${escapeHtml(ev.activity)}</div>` : '';
+
+  showModal({
+    title: `${escapeHtml(dayLabel)} · ${escapeHtml(spanLabel)}`,
+    size: 'sm',
+    body: `
+      <div class="event-detail-view">
+        ${activityHtml}
+        ${addrHtml}
+        ${resHtml}
+      </div>
+    `,
+    actions: [
+      ...(isEditing() ? [{ label: 'Edit', onClick: () => { closeModal(); openEventDialog(dIdx, eventId); } }] : []),
+      { label: 'Close', primary: true, onClick: closeModal }
+    ]
+  });
+}
+
 function removeIfEmpty(dIdx, eventId) {
   const t = currentTrip(); if (!t) return;
   const day = t.itinerary[dIdx];
@@ -775,6 +838,6 @@ Object.assign(window, {
   linkEventReservation, updateEventField, updateDayTheme, updateEventActivity,
   createEventAt, deleteEvent, removeIfEmpty,
   startEventResize, startEventMove, moveEventTo,
-  openEventDialog, _atdRebuildEnd,
+  openEventDialog, openEventDetailsDialog, _atdRebuildEnd,
   computeOverlapLayout,
 });
