@@ -1,6 +1,6 @@
 {
-  "name": "TripPlanner",
-  "short_name": "TripPlanner",
+  "name": "Trip Planner",
+  "short_name": "Trip Planner",
   "description": "Plan trips with itineraries, expenses, packing lists, and reservations.",
   "start_url": "/",
   "display": "standalone",
