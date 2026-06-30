@@ -1,6 +1,6 @@
 {
-  "name": "Trip Planner",
-  "short_name": "Trip Planner",
+  "name": "TripPlanner",
+  "short_name": "TripPlanner",
   "description": "Plan trips with itineraries, expenses, packing lists, and reservations.",
   "start_url": "/",
   "display": "standalone",
@@ -9,10 +9,28 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/src/public/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/src/public/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/src/public/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/src/public/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
