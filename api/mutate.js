@@ -392,6 +392,18 @@ export default async function handler(req, res) {
         break;
       }
 
+      case "setTravelerColor": {
+        const { tripId, travelerName, color } = p;
+        if (!tripId || !travelerName) return res.status(400).json({ error: "tripId and travelerName required" });
+        if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
+        const [row] = await sql`SELECT traveler_colors FROM trips WHERE id = ${tripId}`;
+        const colors = row?.traveler_colors || {};
+        if (color) colors[travelerName] = color;
+        else delete colors[travelerName];
+        await sql`UPDATE trips SET traveler_colors = ${JSON.stringify(colors)} WHERE id = ${tripId}`;
+        break;
+      }
+
       // ── Tasks ─────────────────────────────────────────────────────────────────
       case "addTask": {
         const { tripId, task } = p;

@@ -137,6 +137,10 @@ CREATE TABLE IF NOT EXISTS notes (
 -- Stored as JSONB column on trips: { "Daddy": { joinDay: 2, leaveDay: 5 }, ... }
 ALTER TABLE trips ADD COLUMN IF NOT EXISTS traveler_schedule JSONB NOT NULL DEFAULT '{}';
 
+-- ── Traveler colors (user-picked tag color) ────────────────────────────────────
+-- Stored as JSONB column on trips: { "Daddy": "#dbeafe", ... }
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS traveler_colors JSONB NOT NULL DEFAULT '{}';
+
 -- ── Tasks ──────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS trip_tasks (
   id          TEXT PRIMARY KEY,

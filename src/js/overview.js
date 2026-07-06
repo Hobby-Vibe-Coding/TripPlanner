@@ -22,15 +22,55 @@ const isEditing   = () => window.isEditing();
 const isShareMode = () => window.isShareMode();
 
 
+// -------- TRAVELER COLORS (shared by traveler tags + task assignee chips) --------
+const ASSIGNEE_COLORS = [
+  { bg: '#fce7f3', fg: '#9d174d' },
+  { bg: '#dbeafe', fg: '#1e40af' },
+  { bg: '#dcfce7', fg: '#166534' },
+  { bg: '#fef9c3', fg: '#854d0e' },
+  { bg: '#ede9fe', fg: '#5b21b6' },
+  { bg: '#ffe4e6', fg: '#9f1239' },
+  { bg: '#e0f2fe', fg: '#075985' },
+  { bg: '#fee2e2', fg: '#991b1b' },
+];
+function assigneeColor(name, travelers) {
+  const idx = Math.max(0, (travelers || []).indexOf(name));
+  return ASSIGNEE_COLORS[idx % ASSIGNEE_COLORS.length];
+}
+function contrastFg(hex) {
+  const h = (hex || '').replace('#', '');
+  if (h.length !== 6) return '#1f2937';
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#1f2937' : '#ffffff';
+}
+function getTravelerColor(t, name) {
+  const custom = (t.travelerColors || {})[name];
+  if (custom) return { bg: custom, fg: contrastFg(custom) };
+  return assigneeColor(name, t.travelers || []);
+}
+function setTravelerColor(name, tripId, color) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  t.travelerColors = t.travelerColors || {};
+  t.travelerColors[name] = color;
+  mutate({ type: 'setTravelerColor', tripId, travelerName: name, color });
+  render();
+}
+
 // -------- TRAVELER TAG HELPER --------
 function travelerTagHtml(p, t, isMe, editMode) {
   const schedule = (t.travelerSchedule || {})[p];
   const badge = schedule ? ` <span class="trav-schedule-badge">Day ${schedule.joinDay}–${schedule.leaveDay ?? '?'}</span>` : '';
+  const color = getTravelerColor(t, p);
+  const colorPicker = editMode ? `<input type="color" class="trav-color-input" value="${color.bg}" title="Set color for ${escapeAttr(p)}" onclick="event.stopPropagation();" onchange="event.stopPropagation();setTravelerColor('${escapeAttr(p)}','${escapeAttr(t.id)}',this.value)" />` : '';
   const schedBtn = editMode ? `<button class="trav-schedule-btn" onclick="event.stopPropagation();openTravelerScheduleModal('${escapeAttr(p)}','${escapeAttr(t.id)}')" title="Set join/leave days">📅</button>` : '';
   const removeBtn = `<button class="trav-remove-x" onclick="event.stopPropagation();removeTraveler('${escapeAttr(p)}')" title="Remove ${escapeAttr(p)}">✕</button>`;
   const click = editMode ? "" : `onclick="setMyTraveler('${escapeAttr(p)}')"`;
   const title = editMode ? "" : `title="${isMe ? 'This is you! Click to unset.' : 'Click to set as you'}"`;
-  return `<span class="tag ${isMe ? 'is-me' : ''}" ${click} ${title}>${escapeHtml(p)}${badge}${isMe ? ' <span class="me-badge">(You)</span>' : ''}${schedBtn}${removeBtn}</span>`;
+  const style = isMe ? "" : `style="background:${color.bg};color:${color.fg};"`;
+  return `<span class="tag ${isMe ? 'is-me' : ''}" ${click} ${title} ${style}>${escapeHtml(p)}${badge}${isMe ? ' <span class="me-badge">(You)</span>' : ''}${colorPicker}${schedBtn}${removeBtn}</span>`;
 }
 
 // -------- OVERVIEW TAB --------
@@ -70,7 +110,9 @@ function renderOverview(t) {
             if (shareReadOnly) {
               return travelers.map(p => {
                 const isMe = getMyTraveler(t.id) === p;
-                return `<span class="tag ${isMe?'is-me':''}" onclick="setMyTraveler('${escapeAttr(p)}')" style="cursor:pointer;"
+                const color = getTravelerColor(t, p);
+                const bg = isMe ? '' : `background:${color.bg};color:${color.fg};`;
+                return `<span class="tag ${isMe?'is-me':''}" onclick="setMyTraveler('${escapeAttr(p)}')" style="cursor:pointer;${bg}"
                   title="${isMe?'This is you! Click to unset.':'Click to set as you'}">${escapeHtml(p)}${isMe?' <span class="me-badge">(You)</span>':''}</span>`;
               }).join(" ");
             }
@@ -97,10 +139,11 @@ function renderOverview(t) {
           <div style="margin-top:6px;"><span class="muted text-sm" style="text-transform:none;letter-spacing:0;font-weight:500;">Tap your name to track your share</span></div>
           ` : `
           <div style="margin-top:6px;"><span class="muted text-sm" style="text-transform:none;letter-spacing:0;font-weight:500;">Tap your name to track your share</span></div>
-          <div style="margin-top:10px;">
+          <div style="margin-top:10px;display:flex;gap:6px;">
             <input id="trav-input" placeholder="Add traveler name + Enter"
-                   style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--surface-2);"
-                   onkeydown="if(event.key==='Enter'){addTraveler(this.value);this.value='';}"/>
+                   style="flex:1;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--surface-2);"
+                   onkeydown="if(event.key==='Enter'){addTraveler(this.value, document.getElementById('trav-color-input').value); this.value='';}"/>
+            <input id="trav-color-input" type="color" class="trav-color-input" title="Tag color" value="${ASSIGNEE_COLORS[(t.travelers || []).length % ASSIGNEE_COLORS.length].bg}"/>
           </div>`}
         </div>
 
@@ -255,7 +298,7 @@ function renderOverview(t) {
             <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
               ${nextTasks.map(tk => {
                 const overdue = !!tk.dueDate && tk.dueDate < localTodayStr();
-                const color = tk.assignedTo ? assigneeColor(tk.assignedTo, t.travelers || []) : null;
+                const color = tk.assignedTo ? getTravelerColor(t, tk.assignedTo) : null;
                 return `<div class="text-sm">• ${escapeHtml(tk.title)}${tk.assignedTo ? ` <span class="tag" style="font-size:10px;padding:1px 6px;margin-left:4px;background:${color.bg};color:${color.fg};">${escapeHtml(tk.assignedTo)}</span>` : ''}${tk.dueDate ? ` <span class="muted" style="${overdue ? 'color:#c0392b;font-weight:600;' : ''}">${overdue ? 'Overdue · ' : 'by '}${fmtBookingTime(tk.dueDate)}</span>` : ''}</div>`;
               }).join("")}
             </div>
@@ -400,7 +443,7 @@ function toggleTravEditMode() {
   setTravEditMode(!travEditMode);
   render();
 }
-function addTraveler(name) {
+function addTraveler(name, color) {
   if (!guardEdit()) return;
   name = (name || "").trim(); if (!name) return;
   const t = currentTrip(); if (!t) return;
@@ -411,6 +454,11 @@ function addTraveler(name) {
   }
   t.travelers.push(name);
   mutate({ type: 'addTraveler', tripId: t.id, name });
+  if (color) {
+    t.travelerColors = t.travelerColors || {};
+    t.travelerColors[name] = color;
+    mutate({ type: 'setTravelerColor', tripId: t.id, travelerName: name, color });
+  }
   render();
 }
 function removeTraveler(name) {
@@ -644,21 +692,6 @@ function deleteAnnouncement(annId, tripId) {
 }
 
 // -------- TASKS --------
-const ASSIGNEE_COLORS = [
-  { bg: '#fce7f3', fg: '#9d174d' },
-  { bg: '#dbeafe', fg: '#1e40af' },
-  { bg: '#dcfce7', fg: '#166534' },
-  { bg: '#fef9c3', fg: '#854d0e' },
-  { bg: '#ede9fe', fg: '#5b21b6' },
-  { bg: '#ffe4e6', fg: '#9f1239' },
-  { bg: '#e0f2fe', fg: '#075985' },
-  { bg: '#fee2e2', fg: '#991b1b' },
-];
-function assigneeColor(name, travelers) {
-  const idx = Math.max(0, (travelers || []).indexOf(name));
-  return ASSIGNEE_COLORS[idx % ASSIGNEE_COLORS.length];
-}
-
 function localTodayStr() {
   const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -717,7 +750,7 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
             <input id="task-due-${escapeAttr(t.id)}" type="date" class="task-add-due" title="Due date"/>
             <select id="task-assignee-${escapeAttr(t.id)}" class="task-assignee-select">
               <option value="">Unassigned</option>
-              ${(t.travelers || []).map(p => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join('')}
+              ${(t.travelers || []).map(p => { const c = getTravelerColor(t, p); return `<option value="${escapeAttr(p)}" style="background:${c.bg};color:${c.fg};">${escapeHtml(p)}</option>`; }).join('')}
             </select>
             <button class="btn sm" onclick="addTaskFromInput('${escapeAttr(t.id)}')">Add</button>
           </div>
@@ -730,7 +763,7 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
 function renderTaskRow(tk, t, canEdit) {
   const isDone = tk.status === 'done';
   const overdue = !isDone && !!tk.dueDate && tk.dueDate < localTodayStr();
-  const color = tk.assignedTo ? assigneeColor(tk.assignedTo, t.travelers || []) : null;
+  const color = tk.assignedTo ? getTravelerColor(t, tk.assignedTo) : null;
   return `
     <div class="task-row ${isDone ? 'task-done' : ''}">
       ${canEdit
@@ -854,7 +887,7 @@ Object.assign(window, {
   renderOverview,
   openGroupsModal, renderGroupsModal, dropTravelerIntoGroup,
   addGroup, renameGroup, deleteGroup,
-  toggleTravEditMode, addTraveler, removeTraveler,
+  toggleTravEditMode, addTraveler, removeTraveler, setTravelerColor,
   getMyTraveler, setMyTraveler, computeMyData,
   showTravelerSelectModal, selectTravelerFromModal,
   addAnnouncement, editAnnouncement, toggleAnnouncementPin, deleteAnnouncement,

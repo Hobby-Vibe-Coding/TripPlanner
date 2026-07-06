@@ -119,6 +119,7 @@ export async function loadStateFromDB(sql, userId) {
       myTraveler: tr.my_traveler || null,
       timeSlots: Array.isArray(tr.time_slots) ? tr.time_slots : [],
       travelerSchedule: tr.traveler_schedule || {},
+      travelerColors: tr.traveler_colors || {},
       travelers: (travMap[tr.id] || []).map(r => r.name),
       groups, itinerary, expenses, packing, reservations, notes,
       tasks: (taskMap[tr.id] || []).map(tk => ({
@@ -142,7 +143,7 @@ export async function insertTripRows(sql, userId, trip, order) {
       (id, user_id, title, destination, dest_lat, dest_lng, emoji,
        start_date, end_date, budget, timezone, created_at, memory_line,
        drive_folder_id, drive_thumbnail_id, drive_thumbnail_url,
-       my_traveler, time_slots, traveler_schedule, trip_order)
+       my_traveler, time_slots, traveler_schedule, traveler_colors, trip_order)
     VALUES (
       ${trip.id}, ${userId},
       ${trip.title || ''}, ${trip.destination || ''},
@@ -158,6 +159,7 @@ export async function insertTripRows(sql, userId, trip, order) {
       ${trip.myTraveler ?? null},
       ${JSON.stringify(trip.timeSlots || [])},
       ${JSON.stringify(trip.travelerSchedule || {})},
+      ${JSON.stringify(trip.travelerColors || {})},
       ${order}
     )`;
 
@@ -300,6 +302,7 @@ export async function updateTripFull(sql, tripId, userId, trip) {
     my_traveler         = ${trip.myTraveler ?? null},
     time_slots          = ${JSON.stringify(trip.timeSlots || [])},
     traveler_schedule   = ${JSON.stringify(trip.travelerSchedule || {})},
+    traveler_colors     = ${JSON.stringify(trip.travelerColors || {})},
     drive_folder_id     = ${trip.driveFolder?.folderId ?? null},
     drive_thumbnail_id  = ${trip.driveFolder?.thumbnailId ?? null},
     drive_thumbnail_url = ${trip.driveFolder?.thumbnailUrl ?? null}

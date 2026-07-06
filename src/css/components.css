@@ -1569,6 +1569,21 @@ table.t tfoot td {
 }
 .trav-schedule-btn:hover { opacity: 1; }
 
+.trav-color-input {
+  -webkit-appearance: none; appearance: none;
+  width: 34px; height: 34px; padding: 2px; flex-shrink: 0;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-2); cursor: pointer;
+}
+.trav-color-input::-webkit-color-swatch-wrapper { padding: 2px; }
+.trav-color-input::-webkit-color-swatch { border: none; border-radius: 5px; }
+.tag .trav-color-input {
+  width: 15px; height: 15px; padding: 0; margin-left: 3px;
+  border: 1px solid rgba(0,0,0,0.15); border-radius: 50%; vertical-align: middle;
+}
+.tag .trav-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+.tag .trav-color-input::-webkit-color-swatch { border: none; border-radius: 50%; }
+
 /* ====================================================
    ITINERARY — TRAVELER JOIN/LEAVE BADGES
    ==================================================== */
