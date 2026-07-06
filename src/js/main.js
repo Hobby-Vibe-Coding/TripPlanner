@@ -3,6 +3,7 @@ import './state.js';
 import './auth.js';
 import './modals.js';
 import './auth-modal.js';
+import './pwa-install.js';
 import './calculator.js';
 import './notes.js';
 import './reservations.js';

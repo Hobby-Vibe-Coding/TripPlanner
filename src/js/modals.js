@@ -22,7 +22,13 @@ function showModal({ title, body, actions, size, onOpen, dismissOnOverlay = true
   });
   if (onOpen) onOpen();
 }
-function closeModal() { document.getElementById("modal-root").innerHTML = ""; }
+function closeModal() {
+  document.getElementById("modal-root").innerHTML = "";
+  // Logged-out + not viewing a shared trip means the login modal is the only
+  // legitimate thing on screen — restore it so closing a modal opened from
+  // within it (e.g. install instructions) doesn't strand the user on a blank page.
+  if (!window.isLoggedIn?.() && !window.isShareMode?.()) window.showLoginModal?.();
+}
 
 Object.assign(window, { showModal, closeModal });
 
