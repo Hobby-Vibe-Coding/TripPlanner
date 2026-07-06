@@ -518,6 +518,7 @@ input, textarea, select { font-family: inherit; }
 }
 .btn.ghost { background: transparent; border-color: transparent; }
 .btn.ghost:hover { background: var(--surface-solid); border-color: var(--line); }
+.btn.ghost.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
 .btn.danger { color: #c0392b; border-color: rgba(192,57,43,0.2); }
 .btn.danger:hover { background: #fbe9e7; border-color: rgba(192,57,43,0.4); }
 .btn svg { width: 16px; height: 16px; }

@@ -255,7 +255,7 @@ function renderTrip() {
         ${allowedTabs.includes("expenses") && _myTraveler ? `<div class="stat"><div class="stat-label">Your expenses</div><div class="stat-value" id="stat-my-expenses">${fmtCurrency(myExpensesTotal)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">as ${escapeHtml(_myTraveler)}</div></div>` : ""}
         ${allowedTabs.includes("packing") ? `<div class="stat"><div class="stat-label">Packed</div><div class="stat-value" id="stat-packed">${packDone}/${packTotal}</div></div>` : ""}
         ${allowedTabs.includes("reservations") ? `<div class="stat"><div class="stat-label">To book</div><div class="stat-value" id="stat-to-book">${reservOpen}</div></div>` : ""}
-        ${(() => { const tasks = t.tasks || []; const pend = tasks.filter(tk => tk.status !== 'done').length; return tasks.length ? `<div class="stat"><div class="stat-label">Tasks</div><div class="stat-value" id="stat-tasks">${pend}/${tasks.length}</div></div>` : ""; })()}
+        ${(() => { const tasks = t.tasks || []; const done = tasks.filter(tk => tk.status === 'done').length; return tasks.length ? `<div class="stat"><div class="stat-label">Tasks</div><div class="stat-value" id="stat-tasks">${done}/${tasks.length}</div></div>` : ""; })()}
         ${t.timezone ? `<div class="stat" id="tz-stat"><div class="stat-label">Local time</div><div class="stat-value" id="tz-clock">—</div></div>` : ""}
       </div>
     </div>
