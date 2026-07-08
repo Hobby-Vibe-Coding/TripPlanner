@@ -289,6 +289,11 @@ export default async function handler(req, res) {
             if (!item.id) continue;
             await sql`INSERT INTO packing_items (id, category_id, name, packed, pos) VALUES (${item.id}, ${cat.id}, ${item.name || ''}, ${item.packed || false}, ${ii})
                       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, packed = EXCLUDED.packed, pos = EXCLUDED.pos`;
+            const itemAssignees = item.assignedTo || [];
+            await sql`DELETE FROM packing_item_assignees WHERE item_id = ${item.id}`;
+            for (const name of itemAssignees) {
+              await sql`INSERT INTO packing_item_assignees (item_id, name) VALUES (${item.id}, ${name}) ON CONFLICT DO NOTHING`;
+            }
           }
           // Remove items no longer in this category
           if (itemIds.length > 0) {
@@ -310,6 +315,9 @@ export default async function handler(req, res) {
         const { categoryId, item } = p;
         const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM packing_items WHERE category_id = ${categoryId}`;
         await sql`INSERT INTO packing_items (id, category_id, name, packed, pos) VALUES (${item.id}, ${categoryId}, ${item.name || ''}, ${item.packed || false}, ${c})`;
+        for (const name of item.assignedTo || []) {
+          await sql`INSERT INTO packing_item_assignees (item_id, name) VALUES (${item.id}, ${name}) ON CONFLICT DO NOTHING`;
+        }
         break;
       }
 
@@ -317,6 +325,13 @@ export default async function handler(req, res) {
         const { itemId } = p;
         if (p.name !== undefined)   await sql`UPDATE packing_items SET name   = ${p.name}   WHERE id = ${itemId}`;
         if (p.packed !== undefined) await sql`UPDATE packing_items SET packed = ${p.packed} WHERE id = ${itemId}`;
+        if (p.assignedTo !== undefined) {
+          const names = p.assignedTo || [];
+          await sql`DELETE FROM packing_item_assignees WHERE item_id = ${itemId}`;
+          for (const name of names) {
+            await sql`INSERT INTO packing_item_assignees (item_id, name) VALUES (${itemId}, ${name}) ON CONFLICT DO NOTHING`;
+          }
+        }
         break;
       }
 
@@ -411,17 +426,26 @@ export default async function handler(req, res) {
         if (!await ownsTrip(sql, tripId, user.id)) return res.status(403).json({ error: "Forbidden" });
         const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM trip_tasks WHERE trip_id = ${tripId}`;
         await sql`INSERT INTO trip_tasks (id, trip_id, title, assigned_to, status, due_date, task_order)
-          VALUES (${task.id}, ${tripId}, ${task.title || ''}, ${task.assignedTo || ''}, 'pending', ${task.dueDate || ''}, ${c})`;
+          VALUES (${task.id}, ${tripId}, ${task.title || ''}, '', 'pending', ${task.dueDate || ''}, ${c})`;
+        for (const name of task.assignedTo || []) {
+          await sql`INSERT INTO trip_task_assignees (task_id, name) VALUES (${task.id}, ${name}) ON CONFLICT DO NOTHING`;
+        }
         break;
       }
 
       case "updateTask": {
         const { taskId, fields } = p;
         const handlers = {
-          title:      (v) => sql`UPDATE trip_tasks SET title       = ${v ?? ''}      WHERE id = ${taskId}`,
-          assignedTo: (v) => sql`UPDATE trip_tasks SET assigned_to = ${v ?? ''}      WHERE id = ${taskId}`,
-          status:     (v) => sql`UPDATE trip_tasks SET status      = ${v ?? 'pending'} WHERE id = ${taskId}`,
-          dueDate:    (v) => sql`UPDATE trip_tasks SET due_date    = ${v ?? ''}      WHERE id = ${taskId}`,
+          title:   (v) => sql`UPDATE trip_tasks SET title    = ${v ?? ''}      WHERE id = ${taskId}`,
+          status:  (v) => sql`UPDATE trip_tasks SET status   = ${v ?? 'pending'} WHERE id = ${taskId}`,
+          dueDate: (v) => sql`UPDATE trip_tasks SET due_date = ${v ?? ''}      WHERE id = ${taskId}`,
+          assignedTo: async (v) => {
+            const names = v || [];
+            await sql`DELETE FROM trip_task_assignees WHERE task_id = ${taskId}`;
+            for (const name of names) {
+              await sql`INSERT INTO trip_task_assignees (task_id, name) VALUES (${taskId}, ${name}) ON CONFLICT DO NOTHING`;
+            }
+          },
         };
         for (const [key, val] of Object.entries(fields || {})) {
           if (handlers[key]) await handlers[key](val);

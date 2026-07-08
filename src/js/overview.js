@@ -59,6 +59,47 @@ function setTravelerColor(name, tripId, color) {
   render();
 }
 
+// -------- SHARED MULTI-ASSIGNEE PICKER (Tasks + Packing) --------
+function renderAssigneeChips(names, t, assignOnClick) {
+  const list = names || [];
+  const chips = list.map(name => {
+    const c = getTravelerColor(t, name);
+    return `<span class="tag assignee-chip" style="background:${c.bg};color:${c.fg};">${escapeHtml(name)}</span>`;
+  }).join('');
+  const addBtn = assignOnClick
+    ? `<button class="assignee-add-btn" onclick="${assignOnClick}" title="Assign people">${list.length ? '+' : '+ Assign'}</button>`
+    : '';
+  return `<span class="assignee-chips">${chips}${addBtn}</span>`;
+}
+
+function openAssigneePickerModal({ tripId, current, onSave }) {
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const travelers = t.travelers || [];
+  const selected = new Set(current || []);
+  showModal({
+    title: 'Assign to',
+    size: 'sm',
+    body: travelers.length
+      ? `<div style="display:flex;flex-direction:column;gap:8px;">
+          ${travelers.map(p => `
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+              <input type="checkbox" class="assignee-picker-cb" value="${escapeAttr(p)}" ${selected.has(p) ? 'checked' : ''} />
+              ${escapeHtml(p)}
+            </label>`).join('')}
+        </div>`
+      : `<p class="muted text-sm">Add travelers first (Overview tab) to assign people.</p>`,
+    actions: [
+      { label: 'Save', primary: true, onClick: () => {
+        const checked = [...document.querySelectorAll('.assignee-picker-cb:checked')].map(cb => cb.value);
+        closeModal();
+        onSave(checked);
+      }},
+      { label: 'Cancel', onClick: closeModal }
+    ]
+  });
+}
+
 // -------- TRAVELER TAG HELPER --------
 function travelerTagHtml(p, t, isMe, editMode) {
   const schedule = (t.travelerSchedule || {})[p];
@@ -79,6 +120,12 @@ function renderOverview(t) {
   const numPeople = Math.max(1, (t.travelers || []).length);
   const nextRes = (t.reservations || []).filter(r => r.status !== "booked" && r.status !== "cancelled" && r.name?.trim()).slice(0, 3);
   const nextTasks = (t.tasks || []).filter(tk => tk.status !== 'done' && tk.title?.trim()).slice(0, 3);
+  const myTravelerForPacking = getMyTraveler(t.id);
+  const nextPacking = myTravelerForPacking
+    ? (t.packing || []).flatMap(c => c.items.map(i => ({ ...i, catName: c.name })))
+        .filter(i => !i.packed && (i.assignedTo || []).includes(myTravelerForPacking))
+        .slice(0, 3)
+    : [];
   const themes = (t.itinerary || []).map((d, i) => ({ i: i+1, theme: d.theme })).filter(x => x.theme);
   const shareReadOnly = document.documentElement.getAttribute("data-share") === "read";
   const pinned = (t.announcements || []).filter(a => a.pinned);
@@ -298,8 +345,11 @@ function renderOverview(t) {
             <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
               ${nextTasks.map(tk => {
                 const overdue = !!tk.dueDate && tk.dueDate < localTodayStr();
-                const color = tk.assignedTo ? getTravelerColor(t, tk.assignedTo) : null;
-                return `<div class="text-sm">• ${escapeHtml(tk.title)}${tk.assignedTo ? ` <span class="tag" style="font-size:10px;padding:1px 6px;margin-left:4px;background:${color.bg};color:${color.fg};">${escapeHtml(tk.assignedTo)}</span>` : ''}${tk.dueDate ? ` <span class="muted" style="${overdue ? 'color:#c0392b;font-weight:600;' : ''}">${overdue ? 'Overdue · ' : 'on '}${fmtBookingTime(tk.dueDate)}</span>` : ''}</div>`;
+                const chips = (tk.assignedTo || []).map(name => {
+                  const c = getTravelerColor(t, name);
+                  return ` <span class="tag" style="font-size:10px;padding:1px 6px;margin-left:4px;background:${c.bg};color:${c.fg};">${escapeHtml(name)}</span>`;
+                }).join('');
+                return `<div class="text-sm">• ${escapeHtml(tk.title)}${chips}${tk.dueDate ? ` <span class="muted" style="${overdue ? 'color:#c0392b;font-weight:600;' : ''}">${overdue ? 'Overdue · ' : 'on '}${fmtBookingTime(tk.dueDate)}</span>` : ''}</div>`;
               }).join("")}
             </div>
             <button class="btn sm" style="margin-top:10px;" onclick="document.getElementById('tasks-section')?.scrollIntoView({behavior:'smooth'})">View all →</button>
@@ -312,6 +362,16 @@ function renderOverview(t) {
             </div>
             <button class="btn sm" style="margin-top:10px;" onclick="setTab('reservations')">View all →</button>
           ` : ""}
+        </div>
+        ` : ""}
+
+        ${nextPacking.length ? `
+        <div class="stat overview-packing" style="padding:16px;">
+          <div class="stat-label">🎒 My Packing</div>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            ${nextPacking.map(i => `<div class="text-sm">• ${escapeHtml(i.name)} <span class="muted" style="font-size:11px;">(${escapeHtml(i.catName)})</span></div>`).join("")}
+          </div>
+          <button class="btn sm" style="margin-top:10px;" onclick="setTab('packing')">View all →</button>
         </div>
         ` : ""}
       </div>
@@ -697,6 +757,56 @@ function localTodayStr() {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
+const pendingTaskAssignees = {}; // tripId -> string[] (assignees for the not-yet-created task in the add-row)
+function openNewTaskAssigneeModal(tripId) {
+  openAssigneePickerModal({
+    tripId,
+    current: pendingTaskAssignees[tripId] || [],
+    onSave: (names) => { pendingTaskAssignees[tripId] = names; render(); }
+  });
+}
+function openTaskAssigneeModal(taskId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
+  if (!task) return;
+  openAssigneePickerModal({
+    tripId,
+    current: task.assignedTo || [],
+    onSave: (names) => updateTaskAssignees(taskId, tripId, names)
+  });
+}
+function updateTaskAssignees(taskId, tripId, names) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const task = (t.tasks || []).find(tk => tk.id === taskId);
+  if (!task) return;
+  task.assignedTo = names;
+  mutate({ type: 'updateTask', taskId, fields: { assignedTo: names } });
+  render();
+}
+function convertTaskToPackingItem(taskId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const task = (t.tasks || []).find(tk => tk.id === taskId);
+  if (!task) return;
+  t.packing = t.packing || [];
+  let cat = t.packing.find(c => c.name === 'Unsorted');
+  if (!cat) {
+    cat = { id: uid(), name: 'Unsorted', items: [] };
+    t.packing.push(cat);
+    mutate({ type: 'addPackCategory', tripId, category: cat });
+  }
+  const item = { id: uid(), name: task.title, packed: task.status === 'done', assignedTo: task.assignedTo || [] };
+  cat.items.push(item);
+  mutate({ type: 'addPackItem', categoryId: cat.id, item });
+  t.tasks = (t.tasks || []).filter(tk => tk.id !== taskId);
+  mutate({ type: 'deleteTask', tripId, taskId });
+  render();
+}
+
 const taskUiState = {}; // tripId -> { showCompleted, filterMine }
 function getTaskUi(tripId) {
   return taskUiState[tripId] || (taskUiState[tripId] = { showCompleted: false, filterMine: false });
@@ -720,7 +830,7 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
   const ui = getTaskUi(t.id);
   const myTraveler = getMyTraveler(t.id);
   const filterMine = !!myTraveler && ui.filterMine;
-  const visible = filterMine ? tasks.filter(tk => tk.assignedTo === myTraveler) : tasks;
+  const visible = filterMine ? tasks.filter(tk => (tk.assignedTo || []).includes(myTraveler)) : tasks;
 
   const pending = visible.filter(tk => tk.status !== 'done').slice().sort((a, b) => {
     if (!a.dueDate && !b.dueDate) return (a.task_order ?? 0) - (b.task_order ?? 0);
@@ -734,7 +844,10 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
     <div class="tasks-section" id="tasks-section">
       <div class="panel-head" style="margin-top:8px;">
         <h3>Tasks <span class="muted text-sm" style="font-weight:400;text-transform:none;letter-spacing:0;">${pendingAll.length} pending</span></h3>
-        ${myTraveler ? `<button class="btn sm ghost${filterMine ? ' active' : ''}" onclick="toggleTaskFilterMine('${escapeAttr(t.id)}')">${filterMine ? 'All tasks' : 'My tasks'}</button>` : ''}
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${canEdit ? `<span class="tasks-packing-hint" onclick="setTab('packing')" title="Go to Packing tab">🎒 Packing item? → Packing</span>` : ''}
+          ${myTraveler ? `<button class="btn sm ghost${filterMine ? ' active' : ''}" onclick="toggleTaskFilterMine('${escapeAttr(t.id)}')">${filterMine ? 'All tasks' : 'My tasks'}</button>` : ''}
+        </div>
       </div>
       <div class="task-list">
         ${pending.length ? pending.map(tk => renderTaskRow(tk, t, canEdit)).join('')
@@ -748,10 +861,7 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
             <input id="task-input-${escapeAttr(t.id)}" class="task-add-input" placeholder="New task"
                    onkeydown="if(event.key==='Enter'){addTaskFromInput('${escapeAttr(t.id)}')}"/>
             <input id="task-due-${escapeAttr(t.id)}" type="date" class="task-add-due" title="Due date"/>
-            <select id="task-assignee-${escapeAttr(t.id)}" class="task-assignee-select">
-              <option value="">Unassigned</option>
-              ${(t.travelers || []).map(p => { const c = getTravelerColor(t, p); return `<option value="${escapeAttr(p)}" style="background:${c.bg};color:${c.fg};">${escapeHtml(p)}</option>`; }).join('')}
-            </select>
+            ${renderAssigneeChips(pendingTaskAssignees[t.id] || [], t, `openNewTaskAssigneeModal('${escapeAttr(t.id)}')`)}
             <button class="btn sm" onclick="addTaskFromInput('${escapeAttr(t.id)}')">Add</button>
           </div>
         ` : (!tasks.length ? '<div class="muted text-sm" style="padding:8px 0;">No tasks yet.</div>' : '')}
@@ -763,17 +873,19 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
 function renderTaskRow(tk, t, canEdit) {
   const isDone = tk.status === 'done';
   const overdue = !isDone && !!tk.dueDate && tk.dueDate < localTodayStr();
-  const color = tk.assignedTo ? getTravelerColor(t, tk.assignedTo) : null;
   return `
     <div class="task-row ${isDone ? 'task-done' : ''}">
       ${canEdit
         ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
         : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
-      <span class="task-title">${escapeHtml(tk.title)}</span>
-      ${tk.assignedTo ? `<span class="tag task-assignee-tag" style="background:${color.bg};color:${color.fg};">${escapeHtml(tk.assignedTo)}</span>` : ''}
+      ${canEdit
+        ? `<input type="text" class="task-title-input" value="${escapeAttr(tk.title)}" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+        : `<span class="task-title">${escapeHtml(tk.title)}</span>`}
+      ${renderAssigneeChips(tk.assignedTo, t, canEdit ? `openTaskAssigneeModal('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
       ${canEdit
         ? `<input type="date" class="task-due-input${overdue ? ' is-overdue' : ''}" value="${escapeAttr(tk.dueDate || '')}" title="Due date" onchange="updateTaskDueDate('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
         : (tk.dueDate ? `<span class="muted text-sm task-due${overdue ? ' is-overdue' : ''}">${overdue ? 'Overdue · ' : 'by '}${fmtBookingTime(tk.dueDate)}</span>` : '')}
+      ${canEdit ? `<button class="icon-btn task-convert" onclick="convertTaskToPackingItem('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Move to Packing">🎒</button>` : ''}
       ${canEdit ? `<button class="icon-btn task-delete" onclick="deleteTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Delete">✕</button>` : ''}
     </div>
   `;
@@ -783,17 +895,27 @@ function addTaskFromInput(tripId) {
   if (!guardEdit()) return;
   const inp = document.getElementById('task-input-' + tripId);
   const dueInp = document.getElementById('task-due-' + tripId);
-  const sel = document.getElementById('task-assignee-' + tripId);
   const title = (inp?.value || '').trim();
   if (!title) return;
-  const assignedTo = sel?.value || '';
+  const assignedTo = pendingTaskAssignees[tripId] || [];
   const dueDate = dueInp?.value || '';
   const t = (state.trips || []).find(x => x.id === tripId);
   if (!t) return;
   const task = { id: uid(), title, assignedTo, status: 'pending', dueDate, task_order: (t.tasks || []).length };
   t.tasks = [...(t.tasks || []), task];
   mutate({ type: 'addTask', tripId, task });
+  pendingTaskAssignees[tripId] = [];
   render();
+}
+
+function updateTaskTitle(taskId, tripId, value) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  if (!t) return;
+  const task = (t.tasks || []).find(tk => tk.id === taskId);
+  if (!task) return;
+  task.title = value;
+  mutate({ type: 'updateTask', taskId, fields: { title: value } });
 }
 
 function toggleTask(taskId, tripId) {
@@ -891,8 +1013,11 @@ Object.assign(window, {
   getMyTraveler, setMyTraveler, computeMyData,
   showTravelerSelectModal, selectTravelerFromModal,
   addAnnouncement, editAnnouncement, toggleAnnouncementPin, deleteAnnouncement,
-  addTaskFromInput, toggleTask, deleteTask, updateTaskDueDate,
+  addTaskFromInput, toggleTask, deleteTask, updateTaskDueDate, updateTaskTitle,
   toggleTaskFilterMine, toggleShowCompletedTasks,
+  renderAssigneeChips, openAssigneePickerModal,
+  openNewTaskAssigneeModal, openTaskAssigneeModal, updateTaskAssignees,
+  convertTaskToPackingItem,
   openTravelerScheduleModal, saveTravelerSchedule, clearTravelerSchedule,
 });
 

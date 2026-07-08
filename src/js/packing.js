@@ -20,6 +20,8 @@ const daysUntil     = d     => window.daysUntil(d);
 const fmtBookingTime = v    => window.fmtBookingTime(v);
 const tripDuration  = t     => window.tripDuration(t);
 const showLoginModal = t    => window.showLoginModal(t);
+const renderAssigneeChips = (names, tr, cb) => window.renderAssigneeChips(names, tr, cb);
+const openAssigneePickerModal = (opts) => window.openAssigneePickerModal(opts);
 
 
 // Packing-local state
@@ -53,7 +55,8 @@ function renderPacking(t) {
     <div class="panel">
       <div class="panel-head">
         <h3>Packing list</h3>
-        <div class="actions">
+        <div class="actions" style="display:flex;align-items:center;gap:10px;">
+          <span class="tasks-packing-hint" onclick="setTab('overview')" title="Go to Tasks">📋 Chore or errand? → Tasks</span>
           <button class="btn sm" onclick="addPackCategory()">+ Add category</button>
         </div>
       </div>
@@ -77,6 +80,8 @@ function renderPacking(t) {
                   <div class="pack-item ${it.packed?"checked":""}" data-ii="${ii}">
                     <input type="checkbox" ${it.packed?"checked":""} onchange="togglePack(${ci},${ii})" />
                     <input type="text" value="${escapeHtml(it.name)}" onchange="updatePackItem(${ci},${ii},this.value)" />
+                    ${renderAssigneeChips(it.assignedTo, t, `openPackItemAssigneeModal(${ci},${ii})`)}
+                    <button class="x" onclick="convertPackItemToTask(${ci},${ii})" title="Move to Tasks">📋</button>
                     <button class="x" onclick="deletePackItem(${ci},${ii})" title="Remove">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
@@ -324,7 +329,7 @@ function addPackItem(ci, name) {
   if (!guardEdit()) return;
   name = name.trim(); if (!name) return;
   const t = currentTrip();
-  const item = { id: uid(), name, packed: false };
+  const item = { id: uid(), name, packed: false, assignedTo: [] };
   t.packing[ci].items.push(item);
   mutate({ type: 'addPackItem', categoryId: t.packing[ci].id, item });
   tripPanelRender();
@@ -334,6 +339,39 @@ function updatePackItem(ci, ii, name) {
   const item = currentTrip().packing[ci].items[ii];
   item.name = name;
   mutate({ type: 'updatePackItem', itemId: item.id, name });
+}
+function openPackItemAssigneeModal(ci, ii) {
+  if (!guardEdit()) return;
+  const t = currentTrip();
+  const item = t.packing[ci]?.items[ii];
+  if (!item) return;
+  openAssigneePickerModal({
+    tripId: t.id,
+    current: item.assignedTo || [],
+    onSave: (names) => updatePackItemAssignees(ci, ii, names)
+  });
+}
+function updatePackItemAssignees(ci, ii, names) {
+  if (!guardEdit()) return;
+  const t = currentTrip();
+  const item = t.packing[ci]?.items[ii];
+  if (!item) return;
+  item.assignedTo = names;
+  mutate({ type: 'updatePackItem', itemId: item.id, assignedTo: names });
+  tripPanelRender();
+}
+function convertPackItemToTask(ci, ii) {
+  if (!guardEdit()) return;
+  const t = currentTrip();
+  const item = t.packing[ci]?.items[ii];
+  if (!item) return;
+  t.tasks = t.tasks || [];
+  const task = { id: uid(), title: item.name, assignedTo: item.assignedTo || [], status: item.packed ? 'done' : 'pending', dueDate: '', task_order: t.tasks.length };
+  t.tasks.push(task);
+  mutate({ type: 'addTask', tripId: t.id, task });
+  t.packing[ci].items.splice(ii, 1);
+  mutate({ type: 'deletePackItem', itemId: item.id });
+  tripPanelRender();
 }
 function togglePack(ci, ii) {
   if (!guardEdit()) return;
@@ -375,6 +413,7 @@ Object.assign(window, {
   onNtDestInput, selectNtDest, closeNtDestDropdown,
   renderWeatherWidget,
   addPackCategory, updatePackCat, deletePackCat, addPackItem, updatePackItem, togglePack, deletePackItem,
+  openPackItemAssigneeModal, updatePackItemAssignees, convertPackItemToTask,
   getNtDestCoords: () => ntDestCoords,
   resetNtDestCoords: () => { ntDestCoords = null; },
 });
