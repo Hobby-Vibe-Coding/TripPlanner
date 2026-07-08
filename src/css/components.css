@@ -199,6 +199,7 @@ table.t tfoot td {
   .pack-grid { grid-template-columns: 1fr; }
 }
 .pack-cat {
+  min-width: 0;
   background: var(--surface-solid);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -237,12 +238,12 @@ table.t tfoot td {
   transform: scaleX(var(--pct, 0));
   transition: transform 0.3s;
 }
-.pack-items { display: flex; flex-direction: column; gap: 3px; }
+.pack-items { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .pack-item {
   display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
   padding: 5px 6px; border-radius: 7px;
   transition: background 0.1s;
-  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
 .pack-item::-webkit-scrollbar { display: none; }
 .pack-item:hover { background: var(--surface-2); }
@@ -1509,12 +1510,12 @@ table.t tfoot td {
    TASKS
    ==================================================== */
 .tasks-section { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--line); }
-.task-list { display: flex; flex-direction: column; }
+.task-list { display: flex; flex-direction: column; min-width: 0; }
 .task-row {
   display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
   padding: 7px 4px;
   font-size: 13px; color: var(--ink);
-  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
 .task-row::-webkit-scrollbar { display: none; }
 .task-done .task-title, .task-done .task-title-input { text-decoration: line-through; color: var(--ink-soft); }
@@ -1557,7 +1558,7 @@ table.t tfoot td {
 .assignee-overflow-btn.is-static { cursor: default; }
 .assignee-overflow-btn.is-static:hover { border-color: var(--line); color: var(--ink-soft); }
 
-.task-item { display: flex; flex-direction: column; border-bottom: 1px solid var(--line); }
+.task-item { display: flex; flex-direction: column; min-width: 0; border-bottom: 1px solid var(--line); }
 .task-item:last-of-type { border-bottom: none; }
 .task-expand-toggle {
   flex-shrink: 0; background: none; border: 1px solid var(--line); border-radius: 999px;
@@ -1565,13 +1566,13 @@ table.t tfoot td {
 }
 .task-expand-toggle:hover { color: var(--primary); border-color: var(--primary); }
 .subtask-list {
-  display: flex; flex-direction: column; margin: 0 0 4px 30px;
+  display: flex; flex-direction: column; min-width: 0; margin: 0 0 4px 30px;
   border-left: 2px solid var(--line); padding-left: 12px;
 }
 .subtask-row {
   display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
   padding: 5px 4px; font-size: 12px; color: var(--ink);
-  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
 .subtask-row::-webkit-scrollbar { display: none; }
 .subtask-add-row { display: flex; gap: 6px; align-items: center; padding: 6px 4px 4px; }
