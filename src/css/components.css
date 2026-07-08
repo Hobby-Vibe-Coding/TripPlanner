@@ -241,14 +241,15 @@ table.t tfoot td {
 .pack-item.checked .pack-name {
   text-decoration: line-through; color: var(--ink-soft); opacity: 0.7;
 }
+.pack-item-name-row { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; min-width: 0; }
 .pack-item input[type="checkbox"] {
   width: 17px; height: 17px; accent-color: var(--primary);
   cursor: pointer; flex-shrink: 0;
 }
 .pack-item input[type="text"] {
-  flex: 1 1 70px; background: transparent; border: none;
+  flex: 1; background: transparent; border: none;
   padding: 3px 0; font-size: 13px; color: var(--ink);
-  min-width: 70px;
+  min-width: 0;
 }
 .pack-item input[type="text"]:focus { outline: none; }
 .pack-item .x {
@@ -1508,11 +1509,12 @@ table.t tfoot td {
   font-size: 13px; color: var(--ink);
 }
 .task-done .task-title, .task-done .task-title-input { text-decoration: line-through; color: var(--ink-soft); }
+.task-name-row { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; min-width: 0; }
 .task-check { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: var(--primary); }
 .task-status-icon { font-size: 14px; color: var(--ink-soft); flex-shrink: 0; width: 16px; text-align: center; }
-.task-title { flex: 1 1 70px; min-width: 70px; }
+.task-title { flex: 1; min-width: 0; }
 .task-title-input {
-  flex: 1 1 70px; min-width: 70px; background: transparent; border: 1px solid transparent;
+  flex: 1; min-width: 0; background: transparent; border: 1px solid transparent;
   padding: 3px 4px; font-size: 13px; color: var(--ink); border-radius: 6px;
 }
 .task-title-input:hover { background: var(--surface-2); }

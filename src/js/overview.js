@@ -965,12 +965,14 @@ function renderTaskRow(tk, t, canEdit, forceExpand) {
   return `
     <div class="task-item">
       <div class="task-row ${isDone ? 'task-done' : ''}">
-        ${canEdit
-          ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
-          : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
-        ${canEdit
-          ? `<input type="text" class="task-title-input" value="${escapeAttr(tk.title)}" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
-          : `<span class="task-title">${escapeHtml(tk.title)}</span>`}
+        <div class="task-name-row">
+          ${canEdit
+            ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
+            : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
+          ${canEdit
+            ? `<input type="text" class="task-title-input" value="${escapeAttr(tk.title)}" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+            : `<span class="task-title">${escapeHtml(tk.title)}</span>`}
+        </div>
         ${renderAssigneeChips(tk.assignedTo, t, canEdit ? `openTaskAssigneeModal('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
         ${canEdit
           ? `<input type="date" class="task-due-input${overdue ? ' is-overdue' : ''}" value="${escapeAttr(tk.dueDate || '')}" title="Due date" onchange="updateTaskDueDate('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
@@ -1004,12 +1006,14 @@ function renderSubtaskRow(st, tk, t, canEdit) {
   const isDone = st.status === 'done';
   return `
     <div class="subtask-row ${isDone ? 'task-done' : ''}">
-      ${canEdit
-        ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
-        : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
-      ${canEdit
-        ? `<input type="text" class="task-title-input" value="${escapeAttr(st.title)}" onchange="updateSubtaskTitle('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
-        : `<span class="task-title">${escapeHtml(st.title)}</span>`}
+      <div class="task-name-row">
+        ${canEdit
+          ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
+          : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
+        ${canEdit
+          ? `<input type="text" class="task-title-input" value="${escapeAttr(st.title)}" onchange="updateSubtaskTitle('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+          : `<span class="task-title">${escapeHtml(st.title)}</span>`}
+      </div>
       ${renderAssigneeChips(st.assignedTo, t, canEdit ? `openSubtaskAssigneeModal('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
       ${canEdit ? `<button class="icon-btn task-delete" onclick="deleteSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Delete">✕</button>` : ''}
     </div>

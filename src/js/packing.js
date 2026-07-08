@@ -78,8 +78,10 @@ function renderPacking(t) {
               <div class="pack-items">
                 ${c.items.map((it, ii) => `
                   <div class="pack-item ${it.packed?"checked":""}" data-ii="${ii}">
-                    <input type="checkbox" ${it.packed?"checked":""} onchange="togglePack(${ci},${ii})" />
-                    <input type="text" value="${escapeHtml(it.name)}" onchange="updatePackItem(${ci},${ii},this.value)" />
+                    <div class="pack-item-name-row">
+                      <input type="checkbox" ${it.packed?"checked":""} onchange="togglePack(${ci},${ii})" />
+                      <input type="text" value="${escapeHtml(it.name)}" onchange="updatePackItem(${ci},${ii},this.value)" />
+                    </div>
                     ${renderAssigneeChips(it.assignedTo, t, `openPackItemAssigneeModal(${ci},${ii})`)}
                     <button class="x" onclick="convertPackItemToTask(${ci},${ii})" title="Move to Tasks">📋</button>
                     <button class="x" onclick="deletePackItem(${ci},${ii})" title="Remove">
