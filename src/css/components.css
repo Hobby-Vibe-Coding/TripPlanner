@@ -953,6 +953,7 @@ table.t tfoot td {
   .overview-budget { order: 3; }
   .overview-themes { order: 4; }
   .overview-needs { order: 5; }
+  .overview-packing { order: 6; }
 }
 .my-summary-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -1507,11 +1508,36 @@ table.t tfoot td {
   font-size: 13px; color: var(--ink);
 }
 .task-row:last-of-type { border-bottom: none; }
-.task-done .task-title { text-decoration: line-through; color: var(--ink-soft); }
+.task-done .task-title, .task-done .task-title-input { text-decoration: line-through; color: var(--ink-soft); }
 .task-check { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: var(--primary); }
 .task-status-icon { font-size: 14px; color: var(--ink-soft); flex-shrink: 0; width: 16px; text-align: center; }
 .task-title { flex: 1; }
+.task-title-input {
+  flex: 1; min-width: 0; background: transparent; border: 1px solid transparent;
+  padding: 3px 4px; font-size: 13px; color: var(--ink); border-radius: 6px;
+}
+.task-title-input:hover { background: var(--surface-2); }
+.task-title-input:focus { outline: none; border-color: var(--primary); background: var(--surface-2); }
 .task-assignee-tag { font-size: 11px; padding: 1px 7px; flex-shrink: 0; }
+.task-convert {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  font-size: 13px; padding: 2px 5px; border-radius: 4px; opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.task-row:hover .task-convert { opacity: 1; }
+.task-convert:hover { background: var(--surface-2); }
+.tasks-packing-hint {
+  font-size: 11px; color: var(--ink-soft); cursor: pointer; white-space: nowrap;
+  padding: 2px 8px; border: 1px dashed var(--line); border-radius: 999px;
+}
+.tasks-packing-hint:hover { color: var(--primary); border-color: var(--primary); }
+.assignee-chips { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; flex-wrap: wrap; }
+.assignee-chip { font-size: 11px; padding: 1px 7px; }
+.assignee-add-btn {
+  background: none; border: 1px dashed var(--line); border-radius: 999px;
+  color: var(--ink-soft); font-size: 11px; padding: 1px 7px; cursor: pointer; flex-shrink: 0;
+}
+.assignee-add-btn:hover { border-color: var(--primary); color: var(--primary); }
 .task-due { flex-shrink: 0; }
 .task-due.is-overdue { color: #c0392b; font-weight: 600; }
 .task-due-input {
@@ -1548,10 +1574,6 @@ table.t tfoot td {
   font-size: 12px; background: var(--surface-2); color: var(--ink); flex-shrink: 0; width: 128px;
 }
 .task-add-due:focus { outline: none; border-color: var(--primary); }
-.task-assignee-select {
-  padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px;
-  font-size: 12px; background: var(--surface-2); color: var(--ink); max-width: 120px; flex-shrink: 0;
-}
 
 /* ====================================================
    TRAVELER SCHEDULE BADGE + BUTTON
