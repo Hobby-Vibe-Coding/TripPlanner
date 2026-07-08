@@ -59,6 +59,15 @@ function setTravelerColor(name, tripId, color) {
   render();
 }
 
+// -------- SHARED AUTO-WIDTH TEXT INPUT (Tasks + Subtasks + Packing) --------
+// Sizes an <input> to its own content (in `ch` units) so the full name is
+// always visible with no truncation. The row itself never wraps (nowrap +
+// horizontal scroll instead), so a long name just makes that row scrollable
+// rather than pushing other content onto a second line.
+function autoSizeTextInput(el) {
+  el.style.width = Math.max(4, (el.value || '').length + 1) + 'ch';
+}
+
 // -------- SHARED MULTI-ASSIGNEE PICKER (Tasks + Packing) --------
 const ASSIGNEE_CHIPS_VISIBLE = 3; // beyond this, collapse into a "+N" overflow pill
 function renderAssigneeChips(names, t, assignOnClick) {
@@ -986,7 +995,7 @@ function renderTaskRow(tk, t, canEdit, forceExpand) {
             ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
             : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
           ${canEdit
-            ? `<input type="text" class="task-title-input" title="${escapeAttr(tk.title)}" value="${escapeAttr(tk.title)}" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+            ? `<input type="text" class="task-title-input" style="width:${Math.max(4, (tk.title || '').length + 1)}ch" value="${escapeAttr(tk.title)}" oninput="autoSizeTextInput(this)" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
             : `<span class="task-title">${escapeHtml(tk.title)}</span>`}
         </div>
         ${renderAssigneeChips(tk.assignedTo, t, canEdit ? `openTaskAssigneeModal('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
@@ -1027,7 +1036,7 @@ function renderSubtaskRow(st, tk, t, canEdit) {
           ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
           : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
         ${canEdit
-          ? `<input type="text" class="task-title-input" title="${escapeAttr(st.title)}" value="${escapeAttr(st.title)}" onchange="updateSubtaskTitle('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+          ? `<input type="text" class="task-title-input" style="width:${Math.max(4, (st.title || '').length + 1)}ch" value="${escapeAttr(st.title)}" oninput="autoSizeTextInput(this)" onchange="updateSubtaskTitle('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
           : `<span class="task-title">${escapeHtml(st.title)}</span>`}
       </div>
       ${renderAssigneeChips(st.assignedTo, t, canEdit ? `openSubtaskAssigneeModal('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
@@ -1160,6 +1169,7 @@ Object.assign(window, {
   addAnnouncement, editAnnouncement, toggleAnnouncementPin, deleteAnnouncement,
   addTaskFromInput, toggleTask, deleteTask, updateTaskDueDate, updateTaskTitle,
   toggleTaskFilterMine, toggleShowCompletedTasks,
+  autoSizeTextInput,
   renderAssigneeChips, openAssigneePickerModal,
   openNewTaskAssigneeModal, openTaskAssigneeModal, updateTaskAssignees,
   convertTaskToPackingItem,
