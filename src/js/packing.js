@@ -22,6 +22,7 @@ const tripDuration  = t     => window.tripDuration(t);
 const showLoginModal = t    => window.showLoginModal(t);
 const renderAssigneeChips = (names, tr, cb) => window.renderAssigneeChips(names, tr, cb);
 const openAssigneePickerModal = (opts) => window.openAssigneePickerModal(opts);
+const autoSizeTextInput = (el) => window.autoSizeTextInput(el);
 
 
 // Packing-local state
@@ -80,7 +81,7 @@ function renderPacking(t) {
                   <div class="pack-item ${it.packed?"checked":""}" data-ii="${ii}">
                     <div class="pack-item-name-row">
                       <input type="checkbox" ${it.packed?"checked":""} onchange="togglePack(${ci},${ii})" />
-                      <input type="text" value="${escapeHtml(it.name)}" onchange="updatePackItem(${ci},${ii},this.value)" />
+                      <input type="text" style="width:${Math.max(4, (it.name||'').length + 1)}ch" value="${escapeHtml(it.name)}" oninput="autoSizeTextInput(this)" onchange="updatePackItem(${ci},${ii},this.value)" />
                     </div>
                     ${renderAssigneeChips(it.assignedTo, t, `openPackItemAssigneeModal(${ci},${ii})`)}
                     <button class="x" onclick="convertPackItemToTask(${ci},${ii})" title="Move to Tasks">📋</button>

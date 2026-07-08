@@ -241,15 +241,16 @@ table.t tfoot td {
 .pack-item.checked .pack-name {
   text-decoration: line-through; color: var(--ink-soft); opacity: 0.7;
 }
-.pack-item-name-row { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; min-width: 0; }
+.pack-item-name-row { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .pack-item input[type="checkbox"] {
   width: 17px; height: 17px; accent-color: var(--primary);
   cursor: pointer; flex-shrink: 0;
 }
 .pack-item input[type="text"] {
-  flex: 1; background: transparent; border: none;
+  flex: 0 0 auto; background: transparent; border: none;
   padding: 3px 0; font-size: 13px; color: var(--ink);
-  min-width: 0;
+  min-width: 40px; max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pack-item input[type="text"]:focus { outline: none; }
 .pack-item .x {
@@ -1509,13 +1510,15 @@ table.t tfoot td {
   font-size: 13px; color: var(--ink);
 }
 .task-done .task-title, .task-done .task-title-input { text-decoration: line-through; color: var(--ink-soft); }
-.task-name-row { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; min-width: 0; }
+.task-name-row { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .task-check { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: var(--primary); }
 .task-status-icon { font-size: 14px; color: var(--ink-soft); flex-shrink: 0; width: 16px; text-align: center; }
 .task-title { flex: 1; min-width: 0; }
 .task-title-input {
-  flex: 1; min-width: 0; background: transparent; border: 1px solid transparent;
+  flex: 0 0 auto; background: transparent; border: 1px solid transparent;
   padding: 3px 4px; font-size: 13px; color: var(--ink); border-radius: 6px;
+  min-width: 40px; max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .task-title-input:hover { background: var(--surface-2); }
 .task-title-input:focus { outline: none; border-color: var(--primary); background: var(--surface-2); }
@@ -1539,6 +1542,14 @@ table.t tfoot td {
   color: var(--ink-soft); font-size: 11px; padding: 1px 7px; cursor: pointer; flex-shrink: 0;
 }
 .assignee-add-btn:hover { border-color: var(--primary); color: var(--primary); }
+.assignee-overflow-btn {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
+  color: var(--ink-soft); font-size: 11px; font-weight: 600; padding: 1px 7px;
+  cursor: pointer; flex-shrink: 0;
+}
+.assignee-overflow-btn:hover { border-color: var(--primary); color: var(--primary); }
+.assignee-overflow-btn.is-static { cursor: default; }
+.assignee-overflow-btn.is-static:hover { border-color: var(--line); color: var(--ink-soft); }
 
 .task-item { display: flex; flex-direction: column; border-bottom: 1px solid var(--line); }
 .task-item:last-of-type { border-bottom: none; }

@@ -59,17 +59,39 @@ function setTravelerColor(name, tripId, color) {
   render();
 }
 
+// -------- SHARED AUTO-WIDTH TEXT INPUT (Tasks + Subtasks + Packing) --------
+// Sizes an <input> to its own content (in `ch` units) so short names stay
+// compact and share a line with chips/buttons; only a genuinely long name
+// grows enough to push the rest onto the next line (real content width,
+// not an artificial forced-wrap rule).
+function autoSizeTextInput(el) {
+  el.style.width = Math.max(4, (el.value || '').length + 1) + 'ch';
+}
+
 // -------- SHARED MULTI-ASSIGNEE PICKER (Tasks + Packing) --------
+const ASSIGNEE_CHIPS_VISIBLE = 2; // beyond this, collapse into a "+N" overflow pill
 function renderAssigneeChips(names, t, assignOnClick) {
   const list = names || [];
-  const chips = list.map(name => {
+  const visible = list.slice(0, ASSIGNEE_CHIPS_VISIBLE);
+  const overflow = list.slice(ASSIGNEE_CHIPS_VISIBLE);
+  const chips = visible.map(name => {
     const c = getTravelerColor(t, name);
     return `<span class="tag assignee-chip" style="background:${c.bg};color:${c.fg};">${escapeHtml(name)}</span>`;
   }).join('');
+  let overflowChip = '';
+  if (overflow.length) {
+    const tooltip = escapeAttr(overflow.join(', '));
+    // Editable rows reuse the same picker modal to view/edit everyone;
+    // read-only rows get a static badge with a hover tooltip instead,
+    // since the edit modal isn't reachable without edit rights.
+    overflowChip = assignOnClick
+      ? `<button class="assignee-overflow-btn" onclick="${assignOnClick}" title="${tooltip}">+${overflow.length}</button>`
+      : `<span class="assignee-overflow-btn is-static" title="${tooltip}">+${overflow.length}</span>`;
+  }
   const addBtn = assignOnClick
     ? `<button class="assignee-add-btn" onclick="${assignOnClick}" title="Assign people">${list.length ? '+' : '+ Assign'}</button>`
     : '';
-  return `<span class="assignee-chips">${chips}${addBtn}</span>`;
+  return `<span class="assignee-chips">${chips}${overflowChip}${addBtn}</span>`;
 }
 
 function openAssigneePickerModal({ tripId, current, onSave }) {
@@ -345,10 +367,13 @@ function renderOverview(t) {
             <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
               ${nextTasks.map(tk => {
                 const overdue = !!tk.dueDate && tk.dueDate < localTodayStr();
-                const chips = (tk.assignedTo || []).map(name => {
+                const assignees = tk.assignedTo || [];
+                const chips = assignees.slice(0, ASSIGNEE_CHIPS_VISIBLE).map(name => {
                   const c = getTravelerColor(t, name);
                   return ` <span class="tag" style="font-size:10px;padding:1px 6px;margin-left:4px;background:${c.bg};color:${c.fg};">${escapeHtml(name)}</span>`;
-                }).join('');
+                }).join('') + (assignees.length > ASSIGNEE_CHIPS_VISIBLE
+                  ? ` <span class="assignee-overflow-btn is-static" style="font-size:10px;" title="${escapeAttr(assignees.slice(ASSIGNEE_CHIPS_VISIBLE).join(', '))}">+${assignees.length - ASSIGNEE_CHIPS_VISIBLE}</span>`
+                  : '');
                 return `<div class="text-sm">• ${escapeHtml(tk.title)}${chips}${tk.dueDate ? ` <span class="muted" style="${overdue ? 'color:#c0392b;font-weight:600;' : ''}">${overdue ? 'Overdue · ' : 'on '}${fmtBookingTime(tk.dueDate)}</span>` : ''}</div>`;
               }).join("")}
             </div>
@@ -970,7 +995,7 @@ function renderTaskRow(tk, t, canEdit, forceExpand) {
             ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
             : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
           ${canEdit
-            ? `<input type="text" class="task-title-input" value="${escapeAttr(tk.title)}" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+            ? `<input type="text" class="task-title-input" style="width:${Math.max(4, (tk.title || '').length + 1)}ch" value="${escapeAttr(tk.title)}" oninput="autoSizeTextInput(this)" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
             : `<span class="task-title">${escapeHtml(tk.title)}</span>`}
         </div>
         ${renderAssigneeChips(tk.assignedTo, t, canEdit ? `openTaskAssigneeModal('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
@@ -1011,7 +1036,7 @@ function renderSubtaskRow(st, tk, t, canEdit) {
           ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
           : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
         ${canEdit
-          ? `<input type="text" class="task-title-input" value="${escapeAttr(st.title)}" onchange="updateSubtaskTitle('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+          ? `<input type="text" class="task-title-input" style="width:${Math.max(4, (st.title || '').length + 1)}ch" value="${escapeAttr(st.title)}" oninput="autoSizeTextInput(this)" onchange="updateSubtaskTitle('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
           : `<span class="task-title">${escapeHtml(st.title)}</span>`}
       </div>
       ${renderAssigneeChips(st.assignedTo, t, canEdit ? `openSubtaskAssigneeModal('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
@@ -1144,6 +1169,7 @@ Object.assign(window, {
   addAnnouncement, editAnnouncement, toggleAnnouncementPin, deleteAnnouncement,
   addTaskFromInput, toggleTask, deleteTask, updateTaskDueDate, updateTaskTitle,
   toggleTaskFilterMine, toggleShowCompletedTasks,
+  autoSizeTextInput,
   renderAssigneeChips, openAssigneePickerModal,
   openNewTaskAssigneeModal, openTaskAssigneeModal, updateTaskAssignees,
   convertTaskToPackingItem,
