@@ -466,6 +466,48 @@ export default async function handler(req, res) {
         break;
       }
 
+      // ── Subtasks ──────────────────────────────────────────────────────────────
+      case "addSubtask": {
+        const { taskId, subtask } = p;
+        if (!subtask?.id) return res.status(400).json({ error: "subtask.id required" });
+        const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM trip_subtasks WHERE task_id = ${taskId}`;
+        await sql`INSERT INTO trip_subtasks (id, task_id, title, status, subtask_order)
+          VALUES (${subtask.id}, ${taskId}, ${subtask.title || ''}, 'pending', ${c})`;
+        for (const name of subtask.assignedTo || []) {
+          await sql`INSERT INTO trip_subtask_assignees (subtask_id, name) VALUES (${subtask.id}, ${name}) ON CONFLICT DO NOTHING`;
+        }
+        break;
+      }
+
+      case "updateSubtask": {
+        const { subtaskId, fields } = p;
+        const handlers = {
+          title:  (v) => sql`UPDATE trip_subtasks SET title  = ${v ?? ''}       WHERE id = ${subtaskId}`,
+          status: (v) => sql`UPDATE trip_subtasks SET status = ${v ?? 'pending'} WHERE id = ${subtaskId}`,
+          assignedTo: async (v) => {
+            const names = v || [];
+            await sql`DELETE FROM trip_subtask_assignees WHERE subtask_id = ${subtaskId}`;
+            for (const name of names) {
+              await sql`INSERT INTO trip_subtask_assignees (subtask_id, name) VALUES (${subtaskId}, ${name}) ON CONFLICT DO NOTHING`;
+            }
+          },
+        };
+        for (const [key, val] of Object.entries(fields || {})) {
+          if (handlers[key]) await handlers[key](val);
+        }
+        break;
+      }
+
+      case "toggleSubtask": {
+        await sql`UPDATE trip_subtasks SET status = CASE WHEN status = 'done' THEN 'pending' ELSE 'done' END WHERE id = ${p.subtaskId}`;
+        break;
+      }
+
+      case "deleteSubtask": {
+        await sql`DELETE FROM trip_subtasks WHERE id = ${p.subtaskId}`;
+        break;
+      }
+
       // ── Announcements ─────────────────────────────────────────────────────────
       case "addAnnouncement": {
         const { tripId, announcement: a } = p;

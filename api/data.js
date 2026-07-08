@@ -21,7 +21,7 @@ export async function loadStateFromDB(sql, userId) {
     settingsRows, tripRows, travRows, groupRows, gmRows,
     dayRows, slotRows, expRows, partRows,
     catRows, itemRows, itemAssigneeRows, resRows, noteRows,
-    taskRows, taskAssigneeRows, annRows,
+    taskRows, taskAssigneeRows, subtaskRows, subtaskAssigneeRows, annRows,
   ] = await Promise.all([
     sql`SELECT theme, currency FROM user_settings WHERE user_id = ${userId}`,
     sql`SELECT * FROM trips WHERE user_id = ${userId} ORDER BY trip_order, created_at`,
@@ -39,6 +39,8 @@ export async function loadStateFromDB(sql, userId) {
     sql`SELECT n.* FROM notes n JOIN trips t ON n.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY n.trip_id, n.note_order`,
     sql`SELECT tk.* FROM trip_tasks tk JOIN trips t ON tk.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY tk.trip_id, tk.task_order`,
     sql`SELECT tta.* FROM trip_task_assignees tta JOIN trip_tasks tk ON tta.task_id = tk.id JOIN trips t ON tk.trip_id = t.id WHERE t.user_id = ${userId}`,
+    sql`SELECT st.* FROM trip_subtasks st JOIN trip_tasks tk ON st.task_id = tk.id JOIN trips t ON tk.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY st.task_id, st.subtask_order`,
+    sql`SELECT sta.* FROM trip_subtask_assignees sta JOIN trip_subtasks st ON sta.subtask_id = st.id JOIN trip_tasks tk ON st.task_id = tk.id JOIN trips t ON tk.trip_id = t.id WHERE t.user_id = ${userId}`,
     sql`SELECT a.* FROM trip_announcements a JOIN trips t ON a.trip_id = t.id WHERE t.user_id = ${userId} ORDER BY a.trip_id, a.pinned DESC, a.ann_order`,
   ]);
 
@@ -61,6 +63,8 @@ export async function loadStateFromDB(sql, userId) {
   const noteMap  = byTrip(noteRows);
   const taskMap  = byTrip(taskRows);
   const taskAssigneeMap = taskAssigneeRows.reduce((m, r) => { (m[r.task_id] = m[r.task_id] || []).push(r.name); return m; }, {});
+  const subtaskMap = subtaskRows.reduce((m, r) => { (m[r.task_id] = m[r.task_id] || []).push(r); return m; }, {});
+  const subtaskAssigneeMap = subtaskAssigneeRows.reduce((m, r) => { (m[r.subtask_id] = m[r.subtask_id] || []).push(r.name); return m; }, {});
   const annMap   = byTrip(annRows);
 
   const trips = tripRows.map(tr => {
@@ -129,6 +133,10 @@ export async function loadStateFromDB(sql, userId) {
       tasks: (taskMap[tr.id] || []).map(tk => ({
         id: tk.id, title: tk.title, assignedTo: taskAssigneeMap[tk.id] || [],
         status: tk.status, dueDate: tk.due_date || '',
+        subtasks: (subtaskMap[tk.id] || []).map(st => ({
+          id: st.id, title: st.title, status: st.status,
+          assignedTo: subtaskAssigneeMap[st.id] || [],
+        })),
       })),
       announcements: (annMap[tr.id] || []).map(a => ({
         id: a.id, text: a.ann_text, pinned: a.pinned,
@@ -248,6 +256,15 @@ export async function insertTripRows(sql, userId, trip, order) {
       VALUES (${tk.id}, ${trip.id}, ${tk.title || ''}, '', ${tk.status || 'pending'}, ${tk.dueDate || ''}, ${ti})`;
     for (const name of tk.assignedTo || []) {
       await sql`INSERT INTO trip_task_assignees (task_id, name) VALUES (${tk.id}, ${name}) ON CONFLICT DO NOTHING`;
+    }
+    for (let si = 0; si < (tk.subtasks || []).length; si++) {
+      const st = tk.subtasks[si];
+      if (!st.id) continue;
+      await sql`INSERT INTO trip_subtasks (id, task_id, title, status, subtask_order)
+        VALUES (${st.id}, ${tk.id}, ${st.title || ''}, ${st.status || 'pending'}, ${si})`;
+      for (const name of st.assignedTo || []) {
+        await sql`INSERT INTO trip_subtask_assignees (subtask_id, name) VALUES (${st.id}, ${name}) ON CONFLICT DO NOTHING`;
+      }
     }
   }
 
@@ -489,6 +506,29 @@ export async function updateTripFull(sql, tripId, userId, trip) {
       await sql`DELETE FROM trip_task_assignees WHERE task_id = ${tk.id} AND name != ALL(${taskAssignees}::text[])`;
     } else {
       await sql`DELETE FROM trip_task_assignees WHERE task_id = ${tk.id}`;
+    }
+    const subtaskIds = (tk.subtasks || []).filter(st => st.id).map(st => st.id);
+    for (let si = 0; si < (tk.subtasks || []).length; si++) {
+      const st = tk.subtasks[si];
+      if (!st.id) continue;
+      await sql`INSERT INTO trip_subtasks (id, task_id, title, status, subtask_order)
+                VALUES (${st.id}, ${tk.id}, ${st.title || ''}, ${st.status || 'pending'}, ${si})
+                ON CONFLICT (id) DO UPDATE SET
+                  title = EXCLUDED.title, status = EXCLUDED.status, subtask_order = EXCLUDED.subtask_order`;
+      const subtaskAssignees = st.assignedTo || [];
+      for (const name of subtaskAssignees) {
+        await sql`INSERT INTO trip_subtask_assignees (subtask_id, name) VALUES (${st.id}, ${name}) ON CONFLICT DO NOTHING`;
+      }
+      if (subtaskAssignees.length > 0) {
+        await sql`DELETE FROM trip_subtask_assignees WHERE subtask_id = ${st.id} AND name != ALL(${subtaskAssignees}::text[])`;
+      } else {
+        await sql`DELETE FROM trip_subtask_assignees WHERE subtask_id = ${st.id}`;
+      }
+    }
+    if (subtaskIds.length > 0) {
+      await sql`DELETE FROM trip_subtasks WHERE task_id = ${tk.id} AND id != ALL(${subtaskIds}::text[])`;
+    } else {
+      await sql`DELETE FROM trip_subtasks WHERE task_id = ${tk.id}`;
     }
   }
   if (taskIds.length > 0) {

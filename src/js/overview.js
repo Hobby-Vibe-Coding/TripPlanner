@@ -792,7 +792,8 @@ function convertTaskToPackingItem(taskId, tripId) {
   if (!t) return;
   const task = (t.tasks || []).find(tk => tk.id === taskId);
   if (!task) return;
-  if (!confirm(`Move "${task.title}" to the Packing list?`)) return;
+  const subtaskWarning = task.subtasks?.length ? ` Its ${task.subtasks.length} subtask(s) will be removed.` : '';
+  if (!confirm(`Move "${task.title}" to the Packing list?${subtaskWarning}`)) return;
   t.packing = t.packing || [];
   const item = { id: uid(), name: task.title, packed: task.status === 'done', assignedTo: task.assignedTo || [] };
   let cat = t.packing.find(c => c.name === 'Unsorted');
@@ -817,6 +818,84 @@ function getTaskUi(tripId) {
   return taskUiState[tripId] || (taskUiState[tripId] = { showCompleted: false, filterMine: false });
 }
 
+// -------- SUBTASKS --------
+const expandedTasks = new Set(); // taskId -> manually expanded
+function toggleTaskExpand(taskId) {
+  if (expandedTasks.has(taskId)) expandedTasks.delete(taskId); else expandedTasks.add(taskId);
+  render();
+}
+
+function addSubtaskFromInput(taskId, tripId) {
+  if (!guardEdit()) return;
+  const inp = document.getElementById('subtask-input-' + taskId);
+  const title = (inp?.value || '').trim();
+  if (!title) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
+  if (!task) return;
+  task.subtasks = task.subtasks || [];
+  const subtask = { id: uid(), title, assignedTo: [], status: 'pending' };
+  task.subtasks.push(subtask);
+  mutate({ type: 'addSubtask', taskId, subtask });
+  expandedTasks.add(taskId);
+  render();
+}
+
+function toggleSubtask(subtaskId, taskId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
+  const st = task && (task.subtasks || []).find(s => s.id === subtaskId);
+  if (!st) return;
+  st.status = st.status === 'done' ? 'pending' : 'done';
+  mutate({ type: 'toggleSubtask', subtaskId });
+  render();
+}
+
+function updateSubtaskTitle(subtaskId, taskId, tripId, value) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
+  const st = task && (task.subtasks || []).find(s => s.id === subtaskId);
+  if (!st) return;
+  st.title = value;
+  mutate({ type: 'updateSubtask', subtaskId, fields: { title: value } });
+}
+
+function openSubtaskAssigneeModal(subtaskId, taskId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
+  const st = task && (task.subtasks || []).find(s => s.id === subtaskId);
+  if (!st) return;
+  openAssigneePickerModal({
+    tripId,
+    current: st.assignedTo || [],
+    onSave: (names) => updateSubtaskAssignees(subtaskId, taskId, tripId, names)
+  });
+}
+
+function updateSubtaskAssignees(subtaskId, taskId, tripId, names) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
+  const st = task && (task.subtasks || []).find(s => s.id === subtaskId);
+  if (!st) return;
+  st.assignedTo = names;
+  mutate({ type: 'updateSubtask', subtaskId, fields: { assignedTo: names } });
+  render();
+}
+
+function deleteSubtask(subtaskId, taskId, tripId) {
+  if (!guardEdit()) return;
+  const t = (state.trips || []).find(x => x.id === tripId);
+  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
+  if (!task) return;
+  task.subtasks = (task.subtasks || []).filter(s => s.id !== subtaskId);
+  mutate({ type: 'deleteSubtask', subtaskId });
+  render();
+}
+
 function toggleTaskFilterMine(tripId) {
   getTaskUi(tripId).filterMine = !getTaskUi(tripId).filterMine;
   render();
@@ -835,7 +914,9 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
   const ui = getTaskUi(t.id);
   const myTraveler = getMyTraveler(t.id);
   const filterMine = !!myTraveler && ui.filterMine;
-  const visible = filterMine ? tasks.filter(tk => (tk.assignedTo || []).includes(myTraveler)) : tasks;
+  const visible = filterMine
+    ? tasks.filter(tk => (tk.assignedTo || []).includes(myTraveler) || (tk.subtasks || []).some(st => (st.assignedTo || []).includes(myTraveler)))
+    : tasks;
 
   const pending = visible.filter(tk => tk.status !== 'done').slice().sort((a, b) => {
     if (!a.dueDate && !b.dueDate) return (a.task_order ?? 0) - (b.task_order ?? 0);
@@ -855,11 +936,11 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
         </div>
       </div>
       <div class="task-list">
-        ${pending.length ? pending.map(tk => renderTaskRow(tk, t, canEdit)).join('')
+        ${pending.length ? pending.map(tk => renderTaskRow(tk, t, canEdit, filterMine)).join('')
           : `<div class="muted text-sm" style="padding:8px 0;">${filterMine ? 'No tasks assigned to you.' : (tasks.length ? 'All done! 🎉' : '')}</div>`}
         ${done.length ? `
           <div class="task-completed-toggle" onclick="toggleShowCompletedTasks('${escapeAttr(t.id)}')">${ui.showCompleted ? '▾' : '▸'} Completed (${done.length})</div>
-          ${ui.showCompleted ? done.map(tk => renderTaskRow(tk, t, canEdit)).join('') : ''}
+          ${ui.showCompleted ? done.map(tk => renderTaskRow(tk, t, canEdit, filterMine)).join('') : ''}
         ` : ''}
         ${canEdit ? `
           <div class="task-add-row">
@@ -875,23 +956,62 @@ function renderTasksSection(t, shareReadOnly, canEdit) {
   `;
 }
 
-function renderTaskRow(tk, t, canEdit) {
+function renderTaskRow(tk, t, canEdit, forceExpand) {
   const isDone = tk.status === 'done';
   const overdue = !isDone && !!tk.dueDate && tk.dueDate < localTodayStr();
+  const subtasks = tk.subtasks || [];
+  const isExpanded = expandedTasks.has(tk.id) || (!!forceExpand && subtasks.length > 0);
+  const doneCount = subtasks.filter(s => s.status === 'done').length;
   return `
-    <div class="task-row ${isDone ? 'task-done' : ''}">
+    <div class="task-item">
+      <div class="task-row ${isDone ? 'task-done' : ''}">
+        ${canEdit
+          ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
+          : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
+        ${canEdit
+          ? `<input type="text" class="task-title-input" value="${escapeAttr(tk.title)}" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+          : `<span class="task-title">${escapeHtml(tk.title)}</span>`}
+        ${renderAssigneeChips(tk.assignedTo, t, canEdit ? `openTaskAssigneeModal('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
+        ${canEdit
+          ? `<input type="date" class="task-due-input${overdue ? ' is-overdue' : ''}" value="${escapeAttr(tk.dueDate || '')}" title="Due date" onchange="updateTaskDueDate('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+          : (tk.dueDate ? `<span class="muted text-sm task-due${overdue ? ' is-overdue' : ''}">${overdue ? 'Overdue · ' : 'by '}${fmtBookingTime(tk.dueDate)}</span>` : '')}
+        ${(subtasks.length || canEdit) ? `<button class="task-expand-toggle" onclick="toggleTaskExpand('${escapeAttr(tk.id)}')">${isExpanded ? '▾' : '▸'}${subtasks.length ? ` ${doneCount}/${subtasks.length}` : ' Subtasks'}</button>` : ''}
+        ${canEdit ? `<button class="icon-btn task-convert" onclick="convertTaskToPackingItem('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Move to Packing">🎒</button>` : ''}
+        ${canEdit ? `<button class="icon-btn task-delete" onclick="deleteTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Delete">✕</button>` : ''}
+      </div>
+      ${isExpanded ? renderSubtasksBlock(tk, t, canEdit) : ''}
+    </div>
+  `;
+}
+
+function renderSubtasksBlock(tk, t, canEdit) {
+  const subtasks = tk.subtasks || [];
+  return `
+    <div class="subtask-list">
+      ${subtasks.map(st => renderSubtaskRow(st, tk, t, canEdit)).join('')}
+      ${canEdit ? `
+        <div class="subtask-add-row">
+          <input id="subtask-input-${escapeAttr(tk.id)}" class="subtask-add-input" placeholder="New subtask"
+                 onkeydown="if(event.key==='Enter'){addSubtaskFromInput('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')}"/>
+          <button class="btn sm" onclick="addSubtaskFromInput('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')">Add</button>
+        </div>
+      ` : (!subtasks.length ? `<div class="muted text-sm" style="padding:4px 0;">No subtasks yet.</div>` : '')}
+    </div>
+  `;
+}
+
+function renderSubtaskRow(st, tk, t, canEdit) {
+  const isDone = st.status === 'done';
+  return `
+    <div class="subtask-row ${isDone ? 'task-done' : ''}">
       ${canEdit
-        ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
+        ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
         : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
       ${canEdit
-        ? `<input type="text" class="task-title-input" value="${escapeAttr(tk.title)}" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
-        : `<span class="task-title">${escapeHtml(tk.title)}</span>`}
-      ${renderAssigneeChips(tk.assignedTo, t, canEdit ? `openTaskAssigneeModal('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
-      ${canEdit
-        ? `<input type="date" class="task-due-input${overdue ? ' is-overdue' : ''}" value="${escapeAttr(tk.dueDate || '')}" title="Due date" onchange="updateTaskDueDate('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
-        : (tk.dueDate ? `<span class="muted text-sm task-due${overdue ? ' is-overdue' : ''}">${overdue ? 'Overdue · ' : 'by '}${fmtBookingTime(tk.dueDate)}</span>` : '')}
-      ${canEdit ? `<button class="icon-btn task-convert" onclick="convertTaskToPackingItem('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Move to Packing">🎒</button>` : ''}
-      ${canEdit ? `<button class="icon-btn task-delete" onclick="deleteTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Delete">✕</button>` : ''}
+        ? `<input type="text" class="task-title-input" value="${escapeAttr(st.title)}" onchange="updateSubtaskTitle('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
+        : `<span class="task-title">${escapeHtml(st.title)}</span>`}
+      ${renderAssigneeChips(st.assignedTo, t, canEdit ? `openSubtaskAssigneeModal('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
+      ${canEdit ? `<button class="icon-btn task-delete" onclick="deleteSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Delete">✕</button>` : ''}
     </div>
   `;
 }
@@ -906,7 +1026,7 @@ function addTaskFromInput(tripId) {
   const dueDate = dueInp?.value || '';
   const t = (state.trips || []).find(x => x.id === tripId);
   if (!t) return;
-  const task = { id: uid(), title, assignedTo, status: 'pending', dueDate, task_order: (t.tasks || []).length };
+  const task = { id: uid(), title, assignedTo, status: 'pending', dueDate, task_order: (t.tasks || []).length, subtasks: [] };
   t.tasks = [...(t.tasks || []), task];
   mutate({ type: 'addTask', tripId, task });
   pendingTaskAssignees[tripId] = [];
@@ -1023,6 +1143,8 @@ Object.assign(window, {
   renderAssigneeChips, openAssigneePickerModal,
   openNewTaskAssigneeModal, openTaskAssigneeModal, updateTaskAssignees,
   convertTaskToPackingItem,
+  toggleTaskExpand, addSubtaskFromInput, toggleSubtask, updateSubtaskTitle,
+  openSubtaskAssigneeModal, updateSubtaskAssignees, deleteSubtask,
   openTravelerScheduleModal, saveTravelerSchedule, clearTravelerSchedule,
 });
 
