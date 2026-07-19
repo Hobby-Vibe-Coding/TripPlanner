@@ -201,6 +201,20 @@ function openLightbox(idx) {
   renderLightbox();
 }
 
+function openCoverLightbox(fileId) {
+  const t = currentTrip();
+  const cached = t?.driveFolder?.folderId ? driveCache.get(t.driveFolder.folderId) : null;
+  if (cached?.files?.length) {
+    const idx = cached.files.findIndex(f => f.id === fileId);
+    lightboxFiles = cached.files;
+    lightboxIdx = idx >= 0 ? idx : 0;
+  } else {
+    lightboxFiles = [{ id: fileId, name: "Cover photo", thumbnailLink: null }];
+    lightboxIdx = 0;
+  }
+  renderLightbox();
+}
+
 function renderLightbox() {
   if (!lightboxFiles.length) return;
   const f = lightboxFiles[lightboxIdx];
@@ -266,6 +280,6 @@ function closeLightbox() {
 
 Object.assign(window, {
   renderPhotos, setupPhotoLazyLoad, refreshDrivePhotos, openLinkDriveModal, unlinkDriveFolder,
-  setTripThumbnail, openLightbox, renderLightbox, moveLightbox, closeLightbox,
+  setTripThumbnail, openLightbox, openCoverLightbox, renderLightbox, moveLightbox, closeLightbox,
 });
 
