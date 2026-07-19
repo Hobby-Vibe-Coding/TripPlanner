@@ -84,7 +84,6 @@ function renderPackList(t, listType) {
       <div class="panel-head">
         <h3>${escapeHtml(meta.label)}</h3>
         <div class="actions" style="display:flex;align-items:center;gap:10px;">
-          <span class="tasks-packing-hint" onclick="setTab('overview')" title="Go to Tasks">📋 Chore or errand? → Tasks</span>
           <button class="btn sm" onclick="addPackCategory('${listType}')">+ Add category</button>
         </div>
       </div>
@@ -112,7 +111,6 @@ function renderPackList(t, listType) {
                       <input type="text" class="pack-item-name" title="${escapeAttr(it.name)}" value="${escapeHtml(it.name)}" onchange="updatePackItem(${ci},${ii},this.value)" />
                     </div>
                     ${renderAssigneeChips(it.assignedTo, t, `openPackItemAssigneeModal(${ci},${ii})`)}
-                    <button class="x" onclick="convertPackItemToTask(${ci},${ii})" title="Move to Tasks">📋</button>
                     <button class="x" onclick="deletePackItem(${ci},${ii})" title="Remove">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
@@ -415,20 +413,6 @@ function updatePackItemAssignees(ci, ii, names) {
   mutate({ type: 'updatePackItem', itemId: item.id, assignedTo: names });
   tripPanelRender();
 }
-function convertPackItemToTask(ci, ii) {
-  if (!guardEdit()) return;
-  const t = currentTrip();
-  const item = t.packing[ci]?.items[ii];
-  if (!item) return;
-  if (!confirm(`Move "${item.name}" to Tasks?`)) return;
-  t.tasks = t.tasks || [];
-  const task = { id: uid(), title: item.name, assignedTo: item.assignedTo || [], status: item.packed ? 'done' : 'pending', dueDate: '', task_order: t.tasks.length };
-  t.tasks.push(task);
-  mutate({ type: 'addTask', tripId: t.id, task });
-  t.packing[ci].items.splice(ii, 1);
-  mutate({ type: 'deletePackItem', itemId: item.id });
-  tripPanelRender();
-}
 function togglePack(ci, ii) {
   if (!guardEdit()) return;
   const t = currentTrip();
@@ -484,7 +468,7 @@ Object.assign(window, {
   onNtDestInput, selectNtDest, closeNtDestDropdown,
   renderWeatherWidget,
   addPackCategory, updatePackCat, deletePackCat, addPackItem, updatePackItem, togglePack, deletePackItem,
-  openPackItemAssigneeModal, updatePackItemAssignees, convertPackItemToTask,
+  openPackItemAssigneeModal, updatePackItemAssignees,
   getNtDestCoords: () => ntDestCoords,
   resetNtDestCoords: () => { ntDestCoords = null; },
 });

@@ -111,13 +111,16 @@ function getTripHeaderStats(t) {
   const packOnly = (t.packing || []).filter(c => (c.listType || 'packing') === 'packing');
   const packTotal = packOnly.reduce((s, c) => s + c.items.length, 0);
   const packDone = packOnly.reduce((s, c) => s + c.items.filter(i => i.packed).length, 0);
-  return { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal };
+  const todoOnly = (t.packing || []).filter(c => (c.listType || 'packing') === 'todo');
+  const todoTotal = todoOnly.reduce((s, c) => s + c.items.length, 0);
+  const todoDone = todoOnly.reduce((s, c) => s + c.items.filter(i => i.packed).length, 0);
+  return { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal, todoDone, todoTotal };
 }
 
 function updateTripHeaderStats(t) {
   if (!t) t = currentTrip();
   if (!t) return;
-  const { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal } = getTripHeaderStats(t);
+  const { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal, todoDone, todoTotal } = getTripHeaderStats(t);
   const el = (id) => document.getElementById(id);
   const spend = el("stat-total-spend");
   if (spend) spend.textContent = fmtCurrency(totalSpend);
@@ -127,6 +130,8 @@ function updateTripHeaderStats(t) {
   if (packed) packed.textContent = `${packDone}/${packTotal}`;
   const book = el("stat-to-book");
   if (book) book.textContent = String(reservOpen);
+  const todo = el("stat-todo");
+  if (todo) todo.textContent = `${todoDone}/${todoTotal}`;
 }
 
 function renderExpensesPanel() {
@@ -180,7 +185,7 @@ function renderTrip() {
   else cdLabel = `${-dU} days ago`;
 
   const nights = tripDuration(t);
-  const { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal } = getTripHeaderStats(t);
+  const { totalSpend, myExpensesTotal, reservOpen, packDone, packTotal, todoDone, todoTotal } = getTripHeaderStats(t);
   const _myTraveler = getMyTraveler(t.id);
 
   const allowedTabs = window._shareTabs || ALL_TABS;
@@ -256,7 +261,7 @@ function renderTrip() {
         ${allowedTabs.includes("expenses") && _myTraveler ? `<div class="stat"><div class="stat-label">Your expenses</div><div class="stat-value" id="stat-my-expenses">${fmtCurrency(myExpensesTotal)}</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">as ${escapeHtml(_myTraveler)}</div></div>` : ""}
         ${allowedTabs.includes("packing") ? `<div class="stat"><div class="stat-label">Packed</div><div class="stat-value" id="stat-packed">${packDone}/${packTotal}</div></div>` : ""}
         ${allowedTabs.includes("reservations") ? `<div class="stat"><div class="stat-label">To book</div><div class="stat-value" id="stat-to-book">${reservOpen}</div></div>` : ""}
-        ${(() => { const tasks = t.tasks || []; const done = tasks.filter(tk => tk.status === 'done').length; return tasks.length ? `<div class="stat"><div class="stat-label">Tasks</div><div class="stat-value" id="stat-tasks">${done}/${tasks.length}</div></div>` : ""; })()}
+        ${allowedTabs.includes("packing") && todoTotal ? `<div class="stat"><div class="stat-label">To-Do</div><div class="stat-value" id="stat-todo">${todoDone}/${todoTotal}</div></div>` : ""}
         ${t.timezone ? `<div class="stat" id="tz-stat"><div class="stat-label">Local time</div><div class="stat-value" id="tz-clock">—</div></div>` : ""}
       </div>
     </div>

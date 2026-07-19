@@ -22,7 +22,7 @@ const isEditing   = () => window.isEditing();
 const isShareMode = () => window.isShareMode();
 
 
-// -------- TRAVELER COLORS (shared by traveler tags + task assignee chips) --------
+// -------- TRAVELER COLORS (shared by traveler tags + packing assignee chips) --------
 const ASSIGNEE_COLORS = [
   { bg: '#fce7f3', fg: '#9d174d' },
   { bg: '#dbeafe', fg: '#1e40af' },
@@ -59,7 +59,7 @@ function setTravelerColor(name, tripId, color) {
   render();
 }
 
-// -------- SHARED MULTI-ASSIGNEE PICKER (Tasks + Packing) --------
+// -------- SHARED MULTI-ASSIGNEE PICKER (Packing) --------
 const ASSIGNEE_CHIPS_VISIBLE = 3; // beyond this, collapse into a "+N" overflow pill
 function renderAssigneeChips(names, t, assignOnClick) {
   const list = names || [];
@@ -132,7 +132,6 @@ function renderOverview(t) {
   const totalSpend = (t.expenses || []).reduce((s, e) => s + (parseFloat(e.cost) || 0), 0);
   const numPeople = Math.max(1, (t.travelers || []).length);
   const nextRes = (t.reservations || []).filter(r => r.status !== "booked" && r.status !== "cancelled" && r.name?.trim()).slice(0, 3);
-  const nextTasks = (t.tasks || []).filter(tk => tk.status !== 'done' && tk.title?.trim()).slice(0, 3);
   const myTravelerForPacking = getMyTraveler(t.id);
   const nextPacking = myTravelerForPacking
     ? (t.packing || []).flatMap(c => c.items.map(i => ({ ...i, catName: c.name })))
@@ -351,33 +350,13 @@ function renderOverview(t) {
         </div>
         ` : ""}
 
-        ${(nextRes.length || nextTasks.length) ? `
+        ${nextRes.length ? `
         <div class="stat overview-needs" style="padding:16px;">
-          ${nextTasks.length ? `
-            <div class="stat-label">📋 To Do</div>
-            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-              ${nextTasks.map(tk => {
-                const overdue = !!tk.dueDate && tk.dueDate < localTodayStr();
-                const assignees = tk.assignedTo || [];
-                const chips = assignees.slice(0, ASSIGNEE_CHIPS_VISIBLE).map(name => {
-                  const c = getTravelerColor(t, name);
-                  return ` <span class="tag" style="font-size:10px;padding:1px 6px;margin-left:4px;background:${c.bg};color:${c.fg};">${escapeHtml(name)}</span>`;
-                }).join('') + (assignees.length > ASSIGNEE_CHIPS_VISIBLE
-                  ? ` <span class="assignee-overflow-btn is-static" style="font-size:10px;" title="${escapeAttr(assignees.slice(ASSIGNEE_CHIPS_VISIBLE).join(', '))}">+${assignees.length - ASSIGNEE_CHIPS_VISIBLE}</span>`
-                  : '');
-                return `<div class="text-sm">• ${escapeHtml(tk.title)}${chips}${tk.dueDate ? ` <span class="muted" style="${overdue ? 'color:#c0392b;font-weight:600;' : ''}">${overdue ? 'Overdue · ' : 'on '}${fmtBookingTime(tk.dueDate)}</span>` : ''}</div>`;
-              }).join("")}
-            </div>
-            <button class="btn sm" style="margin-top:10px;" onclick="document.getElementById('tasks-section')?.scrollIntoView({behavior:'smooth'})">View all →</button>
-          ` : ""}
-          ${(nextRes.length && nextTasks.length) ? `<div style="border-top:1px solid var(--line);margin:12px 0;"></div>` : ""}
-          ${nextRes.length ? `
-            <div class="stat-label">⚠️ To Book</div>
-            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-              ${nextRes.map(r => `<div class="text-sm">• ${escapeHtml(r.name)}${r.dueDate ? ` <span class="muted">by ${fmtBookingTime(r.dueDate)}</span>`:""}</div>`).join("")}
-            </div>
-            <button class="btn sm" style="margin-top:10px;" onclick="setTab('reservations')">View all →</button>
-          ` : ""}
+          <div class="stat-label">⚠️ To Book</div>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            ${nextRes.map(r => `<div class="text-sm">• ${escapeHtml(r.name)}${r.dueDate ? ` <span class="muted">by ${fmtBookingTime(r.dueDate)}</span>`:""}</div>`).join("")}
+          </div>
+          <button class="btn sm" style="margin-top:10px;" onclick="setTab('reservations')">View all →</button>
         </div>
         ` : ""}
 
@@ -392,7 +371,6 @@ function renderOverview(t) {
         ` : ""}
       </div>
 
-      ${renderTasksSection(t, shareReadOnly, canEdit)}
       ${renderAnnouncementsManage(t, pinned, unpinned, shareReadOnly, canEdit)}
     </div>
   `;
@@ -670,7 +648,7 @@ function renderAnnouncementsSection(t, pinned, unpinned, shareReadOnly, canEdit)
   `;
 }
 
-// -------- ANNOUNCEMENTS (management section below tasks) --------
+// -------- ANNOUNCEMENTS (management section) --------
 function renderAnnouncementsManage(t, pinned, unpinned, shareReadOnly, canEdit) {
   const all = [...pinned, ...unpinned];
   if (!all.length && !canEdit) return '';
@@ -767,333 +745,6 @@ function deleteAnnouncement(annId, tripId) {
   render();
 }
 
-// -------- TASKS --------
-function localTodayStr() {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
-
-const pendingTaskAssignees = {}; // tripId -> string[] (assignees for the not-yet-created task in the add-row)
-function openNewTaskAssigneeModal(tripId) {
-  openAssigneePickerModal({
-    tripId,
-    current: pendingTaskAssignees[tripId] || [],
-    onSave: (names) => { pendingTaskAssignees[tripId] = names; render(); }
-  });
-}
-function openTaskAssigneeModal(taskId, tripId) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
-  if (!task) return;
-  openAssigneePickerModal({
-    tripId,
-    current: task.assignedTo || [],
-    onSave: (names) => updateTaskAssignees(taskId, tripId, names)
-  });
-}
-function updateTaskAssignees(taskId, tripId, names) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  if (!t) return;
-  const task = (t.tasks || []).find(tk => tk.id === taskId);
-  if (!task) return;
-  task.assignedTo = names;
-  mutate({ type: 'updateTask', taskId, fields: { assignedTo: names } });
-  render();
-}
-function convertTaskToPackingItem(taskId, tripId) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  if (!t) return;
-  const task = (t.tasks || []).find(tk => tk.id === taskId);
-  if (!task) return;
-  const subtaskWarning = task.subtasks?.length ? ` Its ${task.subtasks.length} subtask(s) will be removed.` : '';
-  if (!confirm(`Move "${task.title}" to the Packing list?${subtaskWarning}`)) return;
-  t.packing = t.packing || [];
-  const item = { id: uid(), name: task.title, packed: task.status === 'done', assignedTo: task.assignedTo || [] };
-  let cat = t.packing.find(c => c.name === 'Unsorted');
-  if (!cat) {
-    // New category + item must be created in one request — two separate
-    // fire-and-forget mutate calls can race and the item insert can hit
-    // the server before the category row is committed (FK violation).
-    cat = { id: uid(), name: 'Unsorted', items: [item] };
-    t.packing.push(cat);
-    mutate({ type: 'addPackCategory', tripId, category: cat });
-  } else {
-    cat.items.push(item);
-    mutate({ type: 'addPackItem', categoryId: cat.id, item });
-  }
-  t.tasks = (t.tasks || []).filter(tk => tk.id !== taskId);
-  mutate({ type: 'deleteTask', tripId, taskId });
-  render();
-}
-
-const taskUiState = {}; // tripId -> { showCompleted, filterMine }
-function getTaskUi(tripId) {
-  return taskUiState[tripId] || (taskUiState[tripId] = { showCompleted: false, filterMine: false });
-}
-
-// -------- SUBTASKS --------
-const expandedTasks = new Set(); // taskId -> manually expanded
-function toggleTaskExpand(taskId) {
-  if (expandedTasks.has(taskId)) expandedTasks.delete(taskId); else expandedTasks.add(taskId);
-  render();
-}
-
-function addSubtaskFromInput(taskId, tripId) {
-  if (!guardEdit()) return;
-  const inp = document.getElementById('subtask-input-' + taskId);
-  const title = (inp?.value || '').trim();
-  if (!title) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
-  if (!task) return;
-  task.subtasks = task.subtasks || [];
-  const subtask = { id: uid(), title, assignedTo: [], status: 'pending' };
-  task.subtasks.push(subtask);
-  mutate({ type: 'addSubtask', taskId, subtask });
-  expandedTasks.add(taskId);
-  render();
-}
-
-function toggleSubtask(subtaskId, taskId, tripId) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
-  const st = task && (task.subtasks || []).find(s => s.id === subtaskId);
-  if (!st) return;
-  st.status = st.status === 'done' ? 'pending' : 'done';
-  mutate({ type: 'toggleSubtask', subtaskId });
-  render();
-}
-
-function updateSubtaskTitle(subtaskId, taskId, tripId, value) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
-  const st = task && (task.subtasks || []).find(s => s.id === subtaskId);
-  if (!st) return;
-  st.title = value;
-  mutate({ type: 'updateSubtask', subtaskId, fields: { title: value } });
-}
-
-function openSubtaskAssigneeModal(subtaskId, taskId, tripId) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
-  const st = task && (task.subtasks || []).find(s => s.id === subtaskId);
-  if (!st) return;
-  openAssigneePickerModal({
-    tripId,
-    current: st.assignedTo || [],
-    onSave: (names) => updateSubtaskAssignees(subtaskId, taskId, tripId, names)
-  });
-}
-
-function updateSubtaskAssignees(subtaskId, taskId, tripId, names) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
-  const st = task && (task.subtasks || []).find(s => s.id === subtaskId);
-  if (!st) return;
-  st.assignedTo = names;
-  mutate({ type: 'updateSubtask', subtaskId, fields: { assignedTo: names } });
-  render();
-}
-
-function deleteSubtask(subtaskId, taskId, tripId) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  const task = t && (t.tasks || []).find(tk => tk.id === taskId);
-  if (!task) return;
-  task.subtasks = (task.subtasks || []).filter(s => s.id !== subtaskId);
-  mutate({ type: 'deleteSubtask', subtaskId });
-  render();
-}
-
-function toggleTaskFilterMine(tripId) {
-  getTaskUi(tripId).filterMine = !getTaskUi(tripId).filterMine;
-  render();
-}
-
-function toggleShowCompletedTasks(tripId) {
-  getTaskUi(tripId).showCompleted = !getTaskUi(tripId).showCompleted;
-  render();
-}
-
-function renderTasksSection(t, shareReadOnly, canEdit) {
-  const tasks = t.tasks || [];
-  const pendingAll = tasks.filter(tk => tk.status !== 'done');
-  if (!tasks.length && !canEdit) return '';
-
-  const ui = getTaskUi(t.id);
-  const myTraveler = getMyTraveler(t.id);
-  const filterMine = !!myTraveler && ui.filterMine;
-  const visible = filterMine
-    ? tasks.filter(tk => (tk.assignedTo || []).includes(myTraveler) || (tk.subtasks || []).some(st => (st.assignedTo || []).includes(myTraveler)))
-    : tasks;
-
-  const pending = visible.filter(tk => tk.status !== 'done').slice().sort((a, b) => {
-    if (!a.dueDate && !b.dueDate) return (a.task_order ?? 0) - (b.task_order ?? 0);
-    if (!a.dueDate) return 1;
-    if (!b.dueDate) return -1;
-    return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0;
-  });
-  const done = visible.filter(tk => tk.status === 'done');
-
-  return `
-    <div class="tasks-section" id="tasks-section">
-      <div class="panel-head" style="margin-top:8px;">
-        <h3>Tasks <span class="muted text-sm" style="font-weight:400;text-transform:none;letter-spacing:0;">${pendingAll.length} pending</span></h3>
-        <div style="display:flex;align-items:center;gap:10px;">
-          ${canEdit ? `<span class="tasks-packing-hint" onclick="setTab('packing')" title="Go to Packing tab">🎒 Packing item? → Packing</span>` : ''}
-          ${myTraveler ? `<button class="btn sm ghost${filterMine ? ' active' : ''}" onclick="toggleTaskFilterMine('${escapeAttr(t.id)}')">${filterMine ? 'All tasks' : 'My tasks'}</button>` : ''}
-        </div>
-      </div>
-      <div class="task-list">
-        ${pending.length ? pending.map(tk => renderTaskRow(tk, t, canEdit, filterMine)).join('')
-          : `<div class="muted text-sm" style="padding:8px 0;">${filterMine ? 'No tasks assigned to you.' : (tasks.length ? 'All done! 🎉' : '')}</div>`}
-        ${done.length ? `
-          <div class="task-completed-toggle" onclick="toggleShowCompletedTasks('${escapeAttr(t.id)}')">${ui.showCompleted ? '▾' : '▸'} Completed (${done.length})</div>
-          ${ui.showCompleted ? done.map(tk => renderTaskRow(tk, t, canEdit, filterMine)).join('') : ''}
-        ` : ''}
-        ${canEdit ? `
-          <div class="task-add-row">
-            <input id="task-input-${escapeAttr(t.id)}" class="task-add-input" placeholder="New task"
-                   onkeydown="if(event.key==='Enter'){addTaskFromInput('${escapeAttr(t.id)}')}"/>
-            <input id="task-due-${escapeAttr(t.id)}" type="date" class="task-add-due" title="Due date"/>
-            ${renderAssigneeChips(pendingTaskAssignees[t.id] || [], t, `openNewTaskAssigneeModal('${escapeAttr(t.id)}')`)}
-            <button class="btn sm" onclick="addTaskFromInput('${escapeAttr(t.id)}')">Add</button>
-          </div>
-        ` : (!tasks.length ? '<div class="muted text-sm" style="padding:8px 0;">No tasks yet.</div>' : '')}
-      </div>
-    </div>
-  `;
-}
-
-function renderTaskRow(tk, t, canEdit, forceExpand) {
-  const isDone = tk.status === 'done';
-  const overdue = !isDone && !!tk.dueDate && tk.dueDate < localTodayStr();
-  const subtasks = tk.subtasks || [];
-  const isExpanded = expandedTasks.has(tk.id) || (!!forceExpand && subtasks.length > 0);
-  const doneCount = subtasks.filter(s => s.status === 'done').length;
-  return `
-    <div class="task-item">
-      <div class="task-row ${isDone ? 'task-done' : ''}">
-        <div class="task-name-row">
-          ${canEdit
-            ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
-            : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
-          ${canEdit
-            ? `<input type="text" class="task-title-input" title="${escapeAttr(tk.title)}" value="${escapeAttr(tk.title)}" onchange="updateTaskTitle('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
-            : `<span class="task-title">${escapeHtml(tk.title)}</span>`}
-        </div>
-        ${renderAssigneeChips(tk.assignedTo, t, canEdit ? `openTaskAssigneeModal('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
-        ${canEdit
-          ? `<input type="date" class="task-due-input${overdue ? ' is-overdue' : ''}" value="${escapeAttr(tk.dueDate || '')}" title="Due date" onchange="updateTaskDueDate('${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
-          : (tk.dueDate ? `<span class="muted text-sm task-due${overdue ? ' is-overdue' : ''}">${overdue ? 'Overdue · ' : 'by '}${fmtBookingTime(tk.dueDate)}</span>` : '')}
-        ${(subtasks.length || canEdit) ? `<button class="task-expand-toggle" onclick="toggleTaskExpand('${escapeAttr(tk.id)}')">${isExpanded ? '▾' : '▸'}${subtasks.length ? ` ${doneCount}/${subtasks.length}` : ' Subtasks'}</button>` : ''}
-        ${canEdit ? `<button class="icon-btn task-convert" onclick="convertTaskToPackingItem('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Move to Packing">🎒</button>` : ''}
-        ${canEdit ? `<button class="icon-btn task-delete" onclick="deleteTask('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Delete">✕</button>` : ''}
-      </div>
-      ${isExpanded ? renderSubtasksBlock(tk, t, canEdit) : ''}
-    </div>
-  `;
-}
-
-function renderSubtasksBlock(tk, t, canEdit) {
-  const subtasks = tk.subtasks || [];
-  return `
-    <div class="subtask-list">
-      ${subtasks.map(st => renderSubtaskRow(st, tk, t, canEdit)).join('')}
-      ${canEdit ? `
-        <div class="subtask-add-row">
-          <input id="subtask-input-${escapeAttr(tk.id)}" class="subtask-add-input" placeholder="New subtask"
-                 onkeydown="if(event.key==='Enter'){addSubtaskFromInput('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')}"/>
-          <button class="btn sm" onclick="addSubtaskFromInput('${escapeAttr(tk.id)}','${escapeAttr(t.id)}')">Add</button>
-        </div>
-      ` : (!subtasks.length ? `<div class="muted text-sm" style="padding:4px 0;">No subtasks yet.</div>` : '')}
-    </div>
-  `;
-}
-
-function renderSubtaskRow(st, tk, t, canEdit) {
-  const isDone = st.status === 'done';
-  return `
-    <div class="subtask-row ${isDone ? 'task-done' : ''}">
-      <div class="task-name-row">
-        ${canEdit
-          ? `<input type="checkbox" class="task-check" ${isDone ? 'checked' : ''} onchange="toggleSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" />`
-          : `<span class="task-status-icon">${isDone ? '✓' : '·'}</span>`}
-        ${canEdit
-          ? `<input type="text" class="task-title-input" title="${escapeAttr(st.title)}" value="${escapeAttr(st.title)}" onchange="updateSubtaskTitle('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}',this.value)" />`
-          : `<span class="task-title">${escapeHtml(st.title)}</span>`}
-      </div>
-      ${renderAssigneeChips(st.assignedTo, t, canEdit ? `openSubtaskAssigneeModal('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')` : null)}
-      ${canEdit ? `<button class="icon-btn task-delete" onclick="deleteSubtask('${escapeAttr(st.id)}','${escapeAttr(tk.id)}','${escapeAttr(t.id)}')" title="Delete">✕</button>` : ''}
-    </div>
-  `;
-}
-
-function addTaskFromInput(tripId) {
-  if (!guardEdit()) return;
-  const inp = document.getElementById('task-input-' + tripId);
-  const dueInp = document.getElementById('task-due-' + tripId);
-  const title = (inp?.value || '').trim();
-  if (!title) return;
-  const assignedTo = pendingTaskAssignees[tripId] || [];
-  const dueDate = dueInp?.value || '';
-  const t = (state.trips || []).find(x => x.id === tripId);
-  if (!t) return;
-  const task = { id: uid(), title, assignedTo, status: 'pending', dueDate, task_order: (t.tasks || []).length, subtasks: [] };
-  t.tasks = [...(t.tasks || []), task];
-  mutate({ type: 'addTask', tripId, task });
-  pendingTaskAssignees[tripId] = [];
-  render();
-}
-
-function updateTaskTitle(taskId, tripId, value) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  if (!t) return;
-  const task = (t.tasks || []).find(tk => tk.id === taskId);
-  if (!task) return;
-  task.title = value;
-  mutate({ type: 'updateTask', taskId, fields: { title: value } });
-}
-
-function toggleTask(taskId, tripId) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  if (!t) return;
-  const task = (t.tasks || []).find(tk => tk.id === taskId);
-  if (!task) return;
-  task.status = task.status === 'done' ? 'pending' : 'done';
-  mutate({ type: 'toggleTask', tripId, taskId });
-  render();
-}
-
-function updateTaskDueDate(taskId, tripId, value) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  if (!t) return;
-  const task = (t.tasks || []).find(tk => tk.id === taskId);
-  if (!task) return;
-  task.dueDate = value || '';
-  mutate({ type: 'updateTask', taskId, fields: { dueDate: task.dueDate } });
-  render();
-}
-
-function deleteTask(taskId, tripId) {
-  if (!guardEdit()) return;
-  const t = (state.trips || []).find(x => x.id === tripId);
-  if (!t) return;
-  t.tasks = (t.tasks || []).filter(tk => tk.id !== taskId);
-  mutate({ type: 'deleteTask', tripId, taskId });
-  render();
-}
-
 // -------- TRAVELER SCHEDULE MODAL --------
 function openTravelerScheduleModal(name, tripId) {
   if (!guardEdit()) return;
@@ -1158,13 +809,7 @@ Object.assign(window, {
   getMyTraveler, setMyTraveler, computeMyData,
   showTravelerSelectModal, selectTravelerFromModal,
   addAnnouncement, editAnnouncement, toggleAnnouncementPin, deleteAnnouncement,
-  addTaskFromInput, toggleTask, deleteTask, updateTaskDueDate, updateTaskTitle,
-  toggleTaskFilterMine, toggleShowCompletedTasks,
   renderAssigneeChips, openAssigneePickerModal,
-  openNewTaskAssigneeModal, openTaskAssigneeModal, updateTaskAssignees,
-  convertTaskToPackingItem,
-  toggleTaskExpand, addSubtaskFromInput, toggleSubtask, updateSubtaskTitle,
-  openSubtaskAssigneeModal, updateSubtaskAssignees, deleteSubtask,
   openTravelerScheduleModal, saveTravelerSchedule, clearTravelerSchedule,
 });
 
