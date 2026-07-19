@@ -144,10 +144,20 @@ function movePackCategoryToPacking(ci) {
   const t = currentTrip();
   const cat = t.packing[ci];
   if (!cat) return;
-  if (!confirm(`Move "${cat.name}" from Shopping List to Packing List? All its items will be reset to unpacked.`)) return;
-  cat.listType = 'packing';
-  cat.items.forEach(i => { i.packed = false; });
-  mutate({ type: 'movePackCategory', categoryId: cat.id, toListType: 'packing' });
+  const normalizedName = (cat.name || "").trim().toLowerCase();
+  const existing = t.packing.find((c, i) => i !== ci && (c.listType || "packing") === "packing" && (c.name || "").trim().toLowerCase() === normalizedName);
+
+  if (existing) {
+    if (!confirm(`"${existing.name}" already exists in Packing List. Merge "${cat.name}" into it? Items will be combined and reset to unpacked.`)) return;
+    existing.items.push(...cat.items.map(i => ({ ...i, packed: false })));
+    t.packing = t.packing.filter((c, i) => i !== ci);
+    mutate({ type: 'mergePackCategory', sourceCategoryId: cat.id, targetCategoryId: existing.id });
+  } else {
+    if (!confirm(`Move "${cat.name}" from Shopping List to Packing List? All its items will be reset to unpacked.`)) return;
+    cat.listType = 'packing';
+    cat.items.forEach(i => { i.packed = false; });
+    mutate({ type: 'movePackCategory', categoryId: cat.id, toListType: 'packing' });
+  }
   tripPanelRender();
 }
 

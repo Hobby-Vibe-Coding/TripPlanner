@@ -350,6 +350,17 @@ export default async function handler(req, res) {
         break;
       }
 
+      case "mergePackCategory": {
+        const { sourceCategoryId, targetCategoryId } = p;
+        const [{ c }] = await sql`SELECT COUNT(*)::int AS c FROM packing_items WHERE category_id = ${targetCategoryId}`;
+        const items = await sql`SELECT id FROM packing_items WHERE category_id = ${sourceCategoryId} ORDER BY pos`;
+        for (let i = 0; i < items.length; i++) {
+          await sql`UPDATE packing_items SET category_id = ${targetCategoryId}, packed = false, pos = ${c + i} WHERE id = ${items[i].id}`;
+        }
+        await sql`DELETE FROM packing_categories WHERE id = ${sourceCategoryId}`;
+        break;
+      }
+
       // ── Reservations ──────────────────────────────────────────────────────────
       case "addReservation": {
         const { tripId, reservation: r } = p;
