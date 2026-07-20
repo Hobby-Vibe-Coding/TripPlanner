@@ -1335,6 +1335,10 @@ table.t tfoot td {
 .drive-link-row .drive-folder-label {
   font-size: 13px; color: var(--ink-soft); flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-decoration: none; cursor: pointer;
+}
+.drive-link-row .drive-folder-label:hover {
+  color: var(--ink); text-decoration: underline;
 }
 
 /* Lightbox */

@@ -19,6 +19,7 @@ const fmtBookingTime = v    => window.fmtBookingTime(v);
 const tripDuration  = t     => window.tripDuration(t);
 const showLoginModal = t    => window.showLoginModal(t);
 const svgIcon        = n    => window.svgIcon(n);
+const getToken       = ()   => window.getToken();
 
 
 // Photos-local state
@@ -27,6 +28,8 @@ const DRIVE_CACHE_TTL     = 5 * 60 * 1000;
 let lightboxFiles         = [];
 let lightboxIdx           = 0;
 const lightboxFullResReady = new Set();
+const photoUploadState    = new Map(); // tripId -> { done, total }
+const PHOTO_ALLOWED_MIME  = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"];
 
 // -------- PHOTOS TAB --------
 function renderPhotos(t) {
@@ -40,7 +43,7 @@ function renderPhotos(t) {
 
   const folderRow = folderId
     ? `<div class="drive-link-row">
-        <span class="drive-folder-label" title="${escapeHtml(folderId)}">📁 Google Drive folder linked</span>
+        <a class="drive-folder-label" href="${escapeAttr(`https://drive.google.com/drive/folders/${folderId}`)}" target="_blank" rel="noopener noreferrer" title="Open in Google Drive">📁 Google Drive folder linked</a>
         ${!shareReadOnly ? `
           <button class="btn sm" onclick="refreshDrivePhotos('${escapeAttr(folderId)}')">Refresh</button>
           <button class="btn sm ghost" style="color:#c0392b;" onclick="unlinkDriveFolder()">Unlink</button>` : ""}
@@ -49,6 +52,25 @@ function renderPhotos(t) {
         <button class="btn primary" onclick="openLinkDriveModal()">${svgIcon("camera")} Link Google Drive Folder</button>
         <p class="hint" style="margin-top:8px;">Paste a Google Drive folder URL. The folder must be set to "Anyone with the link can view."</p>
       </div>` : "");
+
+  const uploadState = photoUploadState.get(t.id);
+  const uploadZone = (folderId && !shareReadOnly)
+    ? `<div class="doc-upload-zone" id="photo-dropzone-${escapeAttr(t.id)}"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="photoDropHandler(event,'${escapeAttr(t.id)}','${escapeAttr(folderId)}')">
+        <div class="doc-upload-inner">
+          ${uploadState
+            ? `<div class="doc-upload-progress"><div class="doc-progress-bar" style="transform:scaleX(${uploadState.total ? uploadState.done / uploadState.total : 0})"></div></div>
+               <div class="muted text-sm" style="margin-top:6px;">Uploading ${uploadState.done}/${uploadState.total}…</div>`
+            : `<input type="file" id="photo-file-input-${escapeAttr(t.id)}" accept="image/*" multiple style="display:none"
+                     onchange="photoFilesSelected(event,'${escapeAttr(t.id)}','${escapeAttr(folderId)}')" />
+               <button class="btn" onclick="document.getElementById('photo-file-input-${escapeAttr(t.id)}').click()">${svgIcon("camera")} Add Photos</button>
+               <span class="muted text-sm" style="margin-left:8px;">or drag &amp; drop · uploads straight to the linked Drive folder</span>`
+          }
+        </div>
+      </div>`
+    : "";
 
   let gridHtml = "";
   if (!folderId) {
@@ -81,6 +103,7 @@ function renderPhotos(t) {
       ${cached?.files?.length ? `<span style="font-size:13px;color:var(--ink-soft);">${cached.files.length} photo${cached.files.length === 1 ? "" : "s"}</span>` : ""}
     </div>
     ${folderRow}
+    ${uploadZone}
     ${gridHtml}
   </div>`;
 }
@@ -128,6 +151,73 @@ function setupPhotoLazyLoad() {
 function refreshDrivePhotos(folderId) {
   driveCache.delete(folderId);
   render();
+}
+
+// -------- UPLOAD --------
+function photoDropHandler(event, tripId, folderId) {
+  event.preventDefault();
+  document.getElementById(`photo-dropzone-${tripId}`)?.classList.remove('drag-over');
+  if (!guardEdit()) return;
+  const files = Array.from(event.dataTransfer?.files || []);
+  if (files.length) uploadPhotos(files, tripId, folderId);
+}
+
+function photoFilesSelected(event, tripId, folderId) {
+  const files = Array.from(event.target?.files || []);
+  const input = event.target;
+  if (guardEdit() && files.length) uploadPhotos(files, tripId, folderId);
+  if (input) input.value = "";
+}
+
+async function uploadPhotos(files, tripId, folderId) {
+  const errors = [];
+  const toUpload = [];
+  for (const f of files) {
+    if (!PHOTO_ALLOWED_MIME.includes(f.type)) { errors.push(`${f.name}: unsupported file type`); continue; }
+    if (f.size > 20 * 1024 * 1024) { errors.push(`${f.name}: too large (max 20 MB)`); continue; }
+    toUpload.push(f);
+  }
+  if (!toUpload.length) {
+    showModal({ title: "Couldn't upload", size: "sm", body: `<p>${errors.map(escapeHtml).join('<br>') || "No valid images selected."}</p>`, actions: [{ label: "OK", onClick: closeModal }] });
+    return;
+  }
+
+  photoUploadState.set(tripId, { done: 0, total: toUpload.length });
+  render();
+
+  for (const file of toUpload) {
+    try { await uploadSinglePhoto(file, folderId); }
+    catch (e) { errors.push(`${file.name}: ${e.message}`); }
+    const st = photoUploadState.get(tripId);
+    if (st) { st.done += 1; render(); }
+  }
+  photoUploadState.delete(tripId);
+
+  driveCache.delete(folderId);
+  await fetchDrivePhotos(folderId, true);
+
+  if (errors.length) {
+    showModal({ title: "Some photos didn't upload", size: "sm", body: `<p>${errors.map(escapeHtml).join('<br>')}</p>`, actions: [{ label: "OK", onClick: closeModal }] });
+  }
+}
+
+async function uploadSinglePhoto(file, folderId) {
+  const shareMode = document.documentElement.hasAttribute("data-share");
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("folderId", folderId);
+  const headers = {};
+  if (shareMode && window._shareToken) {
+    formData.append("shareToken", window._shareToken);
+  } else {
+    headers.Authorization = `Bearer ${getToken()}`;
+  }
+  const res = await fetch("/api/drive/upload", { method: "POST", headers, body: formData });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Upload failed");
+  }
+  return res.json();
 }
 
 function openLinkDriveModal() {
@@ -255,5 +345,6 @@ function closeLightbox() {
 Object.assign(window, {
   renderPhotos, setupPhotoLazyLoad, refreshDrivePhotos, openLinkDriveModal, unlinkDriveFolder,
   setTripThumbnail, openLightbox, renderLightbox, moveLightbox, closeLightbox,
+  photoDropHandler, photoFilesSelected,
 });
 
