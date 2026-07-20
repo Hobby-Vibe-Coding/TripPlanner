@@ -210,9 +210,8 @@ async function handleUpload(req, res) {
   );
   const driveData = await driveRes.json().catch(() => ({}));
   if (!driveRes.ok) {
-    console.error("[drive upload] Drive API error:", driveData);
-    if (driveRes.status === 403) return res.status(403).json({ error: "The service account doesn't have edit access to this Drive folder." });
-    return res.status(502).json({ error: driveData?.error?.message || "Drive upload failed" });
+    console.error("[drive upload] Drive API error:", driveRes.status, driveData);
+    return res.status(driveRes.status === 403 ? 403 : 502).json({ error: driveData?.error?.message || "Drive upload failed" });
   }
 
   return res.status(200).json({ file: driveData });
