@@ -391,11 +391,25 @@ input, textarea, select { font-family: inherit; }
 }
 
 .postcard-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(240px, 1fr));
+  display: flex;
   gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scroll-padding-left: 2px;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+  scrollbar-width: none;
 }
-.postcard-row .postcard { width: 100%; max-width: none; justify-self: stretch; }
+.postcard-row::-webkit-scrollbar { display: none; }
+.postcard-row .postcard {
+  flex: 0 0 260px;
+  width: 260px;
+  max-width: none;
+  margin-bottom: 0;
+  scroll-snap-align: start;
+}
 
 .postcard-grid {
   display: grid;
@@ -477,7 +491,7 @@ input, textarea, select { font-family: inherit; }
   }
   .trip-card { padding: 14px; border-radius: 16px; }
   .trip-card-banner { height: 96px; font-size: 48px; }
-  .postcard-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .postcard-row .postcard { flex-basis: 220px; width: 220px; }
   .postcard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .year-map { width: 100%; }
   .year-track { gap: 16px; padding: 10px 12px 6px; }
