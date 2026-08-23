@@ -394,7 +394,6 @@ input, textarea, select { font-family: inherit; }
   display: grid;
   grid-template-columns: repeat(4, minmax(240px, 1fr));
   gap: 16px;
-  align-items: start;
 }
 .postcard-row .postcard { width: 100%; max-width: none; justify-self: stretch; }
 
