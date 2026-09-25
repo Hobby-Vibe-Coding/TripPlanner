@@ -23,8 +23,12 @@ export default async function handler(req, res) {
   const [doc] = await sql`SELECT blob_url FROM documents WHERE id = ${id} AND user_id = ${user.id}`;
   if (!doc) return res.status(403).json({ error: "Forbidden" });
 
-  // Delete from Vercel Blob first, then remove DB row
-  await del(doc.blob_url);
+  // Delete from Vercel Blob first, then remove DB row. A blob that can't be deleted
+  // (e.g. it lives in a store the current token doesn't own) shouldn't block removing the record.
+  if (doc.blob_url) {
+    try { await del(doc.blob_url); }
+    catch (err) { console.error("[docs] blob delete failed:", doc.blob_url, err); }
+  }
   await sql`DELETE FROM documents WHERE id = ${id} AND user_id = ${user.id}`;
 
   return res.status(200).json({ ok: true });

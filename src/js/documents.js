@@ -239,10 +239,11 @@ function deleteDocument(docId, tripId) {
         const token = getToken();
         if (!token) return;
         try {
-          await fetch(`/api/docs/${encodeURIComponent(docId)}`, {
+          const res = await fetch(`/api/docs/${encodeURIComponent(docId)}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` }
           });
+          if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
           state._docs = state._docs || {};
           state._docs[tripId] = (state._docs[tripId] || []).filter(d => d.id !== docId);
           render();
